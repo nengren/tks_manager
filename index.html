@@ -2,962 +2,735 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>TK Store Manager 店铺管理</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>TK Store Manager</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏪</text></svg>">
 <style>
-:root{--pri:#0ea5e9;--pri-d:#0284c7;--bg:#f0f4f8;--card:#fff;--text:#1e293b;--text2:#64748b;--text3:#94a3b8;
---ok:#10b981;--ok-bg:#ecfdf5;--warn:#f59e0b;--warn-bg:#fffbeb;--bad:#ef4444;--bad-bg:#fef2f2;
---border:#e2e8f0;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,.08)}
+:root{--pri:#0ea5e9;--pri-d:#0284c7;--pri-l:#e0f2fe;--bg:#f1f5f9;--card:#fff;--text:#1e293b;--text2:#64748b;
+--text3:#94a3b8;--ok:#10b981;--ok-bg:#ecfdf5;--warn:#f59e0b;--warn-bg:#fffbeb;--bad:#ef4444;--bad-bg:#fef2f2;
+--border:#e2e8f0;--radius:10px;--shadow:0 1px 3px rgba(0,0,0,.06);--sidebar:#1e293b;--sidebar-hover:#334155;
+--sidebar-active:#0ea5e9}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);
-min-height:100vh;-webkit-tap-highlight-color:transparent}
+body{font-family:'Segoe UI',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text)}
 .hidden{display:none!important}
+::selection{background:var(--pri-l)}
 
-/* Login */
-#loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(135deg,#0ea5e9 0%,#06b6d4 100%)}
-.login-box{background:#fff;border-radius:16px;padding:40px 32px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.15)}
-.login-box h1{font-size:1.5rem;text-align:center;margin-bottom:4px}
-.login-box .sub{text-align:center;color:var(--text2);font-size:.85rem;margin-bottom:28px}
-.form-group{margin-bottom:16px}
-.form-group label{display:block;font-size:.8rem;font-weight:600;color:var(--text2);margin-bottom:6px}
-.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 14px;border:1.5px solid var(--border);
-border-radius:8px;font-size:.95rem;outline:none;transition:border .2s}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--pri)}
-.form-group textarea{resize:vertical;min-height:60px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border:none;
-border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:all .15s;width:100%}
-.btn-pri{background:var(--pri);color:#fff}.btn-pri:hover{background:var(--pri-d)}
-.btn-ok{background:var(--ok);color:#fff}
-.btn-bad{background:var(--bad);color:#fff}
-.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid var(--border)}
-.btn-sm{padding:6px 14px;font-size:.8rem;width:auto}
-.err-msg{color:var(--bad);font-size:.8rem;text-align:center;margin-top:12px;min-height:20px}
+/* ===== LOGIN ===== */
+#loginPage{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%)}
+.login-box{background:#fff;border-radius:16px;padding:48px 40px;width:400px;box-shadow:0 25px 60px rgba(0,0,0,.3)}
+.login-box h1{font-size:1.6rem;text-align:center;margin-bottom:4px}
+.login-box .sub{text-align:center;color:var(--text2);font-size:.85rem;margin-bottom:32px}
+.fg{margin-bottom:18px}
+.fg label{display:block;font-size:.78rem;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.fg input,.fg select,.fg textarea{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.92rem;outline:none;transition:border .2s;background:#fff}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--pri);box-shadow:0 0 0 3px rgba(14,165,233,.1)}
+.fg textarea{resize:vertical;min-height:60px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border:none;border-radius:8px;font-size:.88rem;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-pri{background:var(--pri);color:#fff;width:100%}.btn-pri:hover{background:var(--pri-d)}
+.btn-ok{background:var(--ok);color:#fff}.btn-bad{background:var(--bad);color:#fff}
+.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid var(--border)}.btn-ghost:hover{border-color:var(--text3)}
+.btn-sm{padding:6px 14px;font-size:.78rem}
+.err-msg{color:var(--bad);font-size:.82rem;text-align:center;margin-top:14px;min-height:20px}
 
-/* App Layout */
-#app{display:none;height:100vh;flex-direction:column}
-.topbar{background:#fff;border-bottom:1px solid var(--border);padding:12px 16px;display:flex;align-items:center;
-justify-content:space-between;flex-shrink:0}
-.topbar h2{font-size:1rem}
-.topbar-right{display:flex;align-items:center;gap:12px}
-.topbar-right .user-name{font-size:.8rem;color:var(--text2)}
-.topbar-right button{background:none;border:none;color:var(--text2);cursor:pointer;font-size:.8rem}
-.main-content{flex:1;overflow-y:auto;padding:16px;padding-bottom:80px}
+/* ===== APP LAYOUT ===== */
+#app{display:none;height:100vh;overflow:hidden}
+.app-wrap{display:flex;height:100%}
+
+/* Sidebar */
+.sidebar{width:230px;background:var(--sidebar);color:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-brand{padding:20px 20px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-brand h2{font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:8px}
+.sidebar-brand p{font-size:.7rem;color:rgba(255,255,255,.4);margin-top:2px}
+.sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.6);
+font-size:.85rem;margin-bottom:2px;transition:all .15s;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:var(--sidebar-hover);color:#fff}
+.nav-item.active{background:var(--sidebar-active);color:#fff;font-weight:600}
+.nav-item .ni{font-size:1.1rem;width:24px;text-align:center}
+.nav-sep{border-top:1px solid rgba(255,255,255,.08);margin:10px 14px}
+.sidebar-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)}
+.sidebar-footer .sf-name{font-size:.82rem;font-weight:600}
+.sidebar-footer .sf-role{font-size:.68rem;color:rgba(255,255,255,.4)}
+.sidebar-footer button{margin-top:8px;background:none;border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);
+padding:6px 14px;border-radius:6px;font-size:.75rem;cursor:pointer;width:100%}
+.sidebar-footer button:hover{background:rgba(255,255,255,.05);color:#fff}
+
+/* Main */
+.main{flex:1;overflow-y:auto;padding:28px 36px}
+.main-header{margin-bottom:24px}
+.main-header h1{font-size:1.4rem;font-weight:700}
+.main-header p{font-size:.82rem;color:var(--text2);margin-top:2px}
 .tab-content{display:none}.tab-content.active{display:block}
 
-/* Bottom Nav */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);
-display:flex;padding:6px 0 env(safe-area-inset-bottom,8px);z-index:100}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;
-cursor:pointer;color:var(--text3);font-size:.65rem;transition:color .15s;border:none;background:none}
-.nav-item.active{color:var(--pri)}
-.nav-item .nav-icon{font-size:1.3rem}
-
 /* Cards */
-.card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
-.card h3{font-size:.95rem;margin-bottom:4px}
-.card .label-en{font-size:.75rem;color:var(--text3);margin-bottom:10px}
-.section-title{font-size:.85rem;font-weight:700;color:var(--text2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+.card{background:var(--card);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.card h3{font-size:1rem;margin-bottom:4px}
+.card .sub-label{font-size:.75rem;color:var(--text3)}
+.sec-title{font-size:.78rem;font-weight:700;color:var(--text2);margin:20px 0 10px;text-transform:uppercase;letter-spacing:.5px}
 
-/* Stats Row */
-.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
-.stat-card{background:var(--card);border-radius:10px;padding:14px 10px;text-align:center;box-shadow:var(--shadow)}
-.stat-val{font-size:1.4rem;font-weight:700}
-.stat-label{font-size:.65rem;color:var(--text2);margin-top:2px}
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:18px 16px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.stat-val{font-size:1.6rem;font-weight:700}
+.stat-label{font-size:.72rem;color:var(--text2);margin-top:4px}
 
 /* Quick Actions */
-.quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.action-btn{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:20px 12px;
+.quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.action-btn{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:24px 16px;
 text-align:center;cursor:pointer;transition:all .15s}
-.action-btn:active{transform:scale(.97);border-color:var(--pri)}
-.action-btn .action-icon{font-size:2rem;margin-bottom:6px}
-.action-btn .action-zh{font-size:.9rem;font-weight:600}
-.action-btn .action-en{font-size:.7rem;color:var(--text2)}
+.action-btn:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:0 4px 12px rgba(14,165,233,.15)}
+.action-btn .ai{font-size:2.2rem;margin-bottom:8px}
+.action-btn .az{font-size:.92rem;font-weight:600}
+.action-btn .ae{font-size:.72rem;color:var(--text2);margin-top:2px}
+
+/* Form grid */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.form-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 
 /* Checklist */
-.check-period{font-size:.8rem;font-weight:700;color:var(--pri);margin:14px 0 6px;display:flex;align-items:center;gap:6px}
-.check-item{display:flex;align-items:flex-start;gap:10px;padding:12px;border-bottom:1px solid var(--border);cursor:pointer}
-.check-item:last-child{border:none}
-.check-box{width:26px;height:26px;border-radius:6px;border:2px solid var(--border);flex-shrink:0;display:flex;
-align-items:center;justify-content:center;font-size:14px;transition:all .2s;margin-top:2px}
-.check-item.done .check-box{background:var(--ok);border-color:var(--ok);color:#fff}
-.check-text .zh{font-size:.85rem;font-weight:500}
-.check-text .en{font-size:.72rem;color:var(--text3)}
-.check-time{font-size:.65rem;color:var(--text3);margin-top:2px}
+.store-checklist{margin-bottom:20px}
+.store-cl-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f8fafc;
+border-radius:var(--radius) var(--radius) 0 0;border:1px solid var(--border);border-bottom:none;cursor:pointer}
+.store-cl-header h4{font-size:.9rem;display:flex;align-items:center;gap:8px}
+.store-cl-header .progress{font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:20px}
+.store-cl-header .progress.p-full{background:var(--ok-bg);color:var(--ok)}
+.store-cl-header .progress.p-partial{background:var(--warn-bg);color:var(--warn)}
+.store-cl-header .progress.p-none{background:var(--bad-bg);color:var(--bad)}
+.store-cl-body{border:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius);background:#fff}
+.period-label{padding:8px 16px;font-size:.72rem;font-weight:700;color:var(--pri);text-transform:uppercase;background:#fafbfc;border-bottom:1px solid var(--border)}
+.ck-item{display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s}
+.ck-item:hover{background:#fafbfc}
+.ck-item:last-child{border:none}
+.ck-box{width:22px;height:22px;border-radius:5px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;
+justify-content:center;font-size:12px;transition:all .15s;margin-top:2px}
+.ck-item.done .ck-box{background:var(--ok);border-color:var(--ok);color:#fff}
+.ck-txt .t-zh{font-size:.82rem;font-weight:500}
+.ck-txt .t-en{font-size:.7rem;color:var(--text3)}
+.ck-txt .t-fil{font-size:.68rem;color:var(--text3);font-style:italic}
+.ck-time{font-size:.65rem;color:var(--ok);margin-top:2px}
 
-/* Score Form */
-.score-group{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.score-group .form-group{margin-bottom:8px}
-.score-calc{background:#f0f9ff;border-radius:8px;padding:10px 14px;font-size:.8rem;color:var(--pri-d);margin:10px 0}
-.detail-toggle{font-size:.8rem;color:var(--pri);cursor:pointer;margin:8px 0;display:inline-block}
+/* Admin overview */
+.staff-overview{margin-bottom:16px}
+.staff-ov-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--card);
+border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:2px}
+.staff-ov-header:hover{background:#fafbfc}
+.staff-ov-header h4{font-size:.92rem}
+.staff-ov-detail{padding:0 18px 12px;background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)}
+.staff-store-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem}
+.staff-store-row:last-child{border:none}
 
-/* Issue Type Tags */
-.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:600}
+/* Score table */
+.score-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.score-table th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);font-size:.72rem;text-transform:uppercase;
+color:var(--text2);font-weight:700}
+.score-table td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
+.score-table tr:hover td{background:#fafbfc}
+.sv-good{color:var(--ok);font-weight:700}.sv-mid{color:var(--warn);font-weight:700}.sv-bad{color:var(--bad);font-weight:700}
+
+/* Tags */
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:600}
 .tag-wrong{background:#fce7f3;color:#be185d}.tag-damaged{background:#fee2e2;color:#b91c1c}
 .tag-missing{background:#fff7ed;color:#c2410c}.tag-defective{background:#fef3c7;color:#92400e}
 .tag-other{background:#f1f5f9;color:#475569}
 .tag-pending{background:#fef3c7;color:#92400e}.tag-resolved{background:#ecfdf5;color:#065f46}
 .tag-refunded{background:#eff6ff;color:#1e40af}.tag-replaced{background:#f0fdf4;color:#166534}
 
-/* Issue List Item */
-.issue-item{padding:10px 0;border-bottom:1px solid var(--border)}
+/* Issue list */
+.issue-item{padding:12px 0;border-bottom:1px solid #f1f5f9}
 .issue-item:last-child{border:none}
-.issue-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
-.issue-store{font-weight:600;font-size:.8rem}
-.issue-date{font-size:.7rem;color:var(--text3)}
-.issue-order{font-size:.75rem;color:var(--text2)}
-.issue-desc{font-size:.75rem;color:var(--text2);margin-top:4px}
+.issue-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.issue-store{font-weight:600;font-size:.85rem}
+.issue-date{font-size:.72rem;color:var(--text3)}
+.issue-desc{font-size:.78rem;color:var(--text2);margin-top:4px}
 
 /* SOP */
-.sop-item{border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden}
-.sop-header{padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
-background:#fafbfc;font-weight:600;font-size:.85rem}
-.sop-header .arrow{transition:transform .2s}
-.sop-item.open .sop-header .arrow{transform:rotate(90deg)}
-.sop-body{display:none;padding:16px;font-size:.82rem;line-height:1.7}
+.sop-item{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;background:#fff}
+.sop-head{padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+font-weight:600;font-size:.88rem;transition:background .1s}
+.sop-head:hover{background:#fafbfc}
+.sop-head .arrow{transition:transform .2s;color:var(--text3)}
+.sop-item.open .sop-head .arrow{transform:rotate(90deg)}
+.sop-body{display:none;padding:20px;border-top:1px solid var(--border);font-size:.82rem;line-height:1.8}
 .sop-item.open .sop-body{display:block}
-.sop-impact{display:inline-block;background:#eff6ff;color:#2563eb;padding:2px 10px;border-radius:20px;
-font-size:.7rem;font-weight:600;margin-bottom:10px}
-.sop-step{margin-bottom:6px;padding-left:20px;position:relative}
-.sop-step::before{content:'';position:absolute;left:6px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--pri)}
-.sop-template{background:#f8fafc;border-left:3px solid var(--pri);padding:10px 14px;margin:10px 0;border-radius:0 6px 6px 0;
-font-size:.78rem;color:var(--text2);white-space:pre-wrap}
+.sop-impact{display:inline-block;background:var(--pri-l);color:var(--pri-d);padding:3px 12px;border-radius:20px;
+font-size:.72rem;font-weight:600;margin-bottom:14px}
+.sop-step{margin-bottom:8px;padding-left:22px;position:relative}
+.sop-step::before{content:'';position:absolute;left:6px;top:9px;width:6px;height:6px;border-radius:50%;background:var(--pri)}
+.sop-step .s-zh{font-weight:500}
+.sop-step .s-en{color:var(--text2)}
+.sop-step .s-fil{color:var(--text3);font-style:italic}
+.sop-tpl{background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;
+font-size:.8rem;color:var(--text2);white-space:pre-wrap}
 
-/* Admin Lists */
-.list-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+/* List items */
+.list-item{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #f1f5f9}
 .list-item:last-child{border:none}
-.list-item .name{font-weight:600;font-size:.85rem}
-.list-item .meta{font-size:.72rem;color:var(--text2)}
-.list-item .actions{display:flex;gap:6px}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:600;
-background:#eff6ff;color:#2563eb}
-.badge-staff{background:#f0fdf4;color:#166534}
+.li-name{font-weight:600;font-size:.88rem}
+.li-meta{font-size:.72rem;color:var(--text2);margin-top:2px}
+.li-actions{display:flex;gap:6px}
+.badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
+.badge-staff{background:var(--ok-bg);color:var(--ok)}
 
-/* Score History */
-.score-row{display:grid;grid-template-columns:80px repeat(4,1fr);gap:4px;padding:8px 0;border-bottom:1px solid var(--border);
-font-size:.75rem;align-items:center}
-.score-row.header{font-weight:700;color:var(--text2);font-size:.68rem}
-.score-val{text-align:center}
-.score-good{color:var(--ok)}.score-mid{color:var(--warn)}.score-bad{color:var(--bad)}
-
-/* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:flex-end;justify-content:center}
-.modal{background:#fff;border-radius:16px 16px 0 0;padding:24px;width:100%;max-width:480px;max-height:80vh;overflow-y:auto}
-.modal h3{margin-bottom:16px}
-
-/* Responsive */
-@media(min-width:768px){
-.main-content{max-width:720px;margin:0 auto;padding-bottom:20px}
-.bottom-nav{position:static;max-width:720px;margin:0 auto;border-radius:12px;margin-bottom:12px;border:1px solid var(--border)}
-.modal{border-radius:16px}
-.modal-overlay{align-items:center}
-}
+/* Calc box */
+.calc-box{background:var(--pri-l);border-radius:8px;padding:12px 16px;font-size:.82rem;color:var(--pri-d);margin:12px 0}
+.detail-toggle{font-size:.8rem;color:var(--pri);cursor:pointer;margin:10px 0;display:inline-block}
+.detail-toggle:hover{text-decoration:underline}
 
 /* Toast */
-.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:10px 24px;
-border-radius:8px;font-size:.85rem;z-index:300;opacity:0;transition:opacity .3s}
+.toast{position:fixed;top:24px;right:24px;background:var(--sidebar);color:#fff;padding:12px 28px;
+border-radius:8px;font-size:.85rem;z-index:300;opacity:0;transition:opacity .3s;box-shadow:0 4px 20px rgba(0,0,0,.2)}
 .toast.show{opacity:1}
+
+/* Responsive for smaller screens */
+@media(max-width:900px){
+.sidebar{width:200px}
+.main{padding:20px}
+.stats-row,.quick-actions{grid-template-columns:repeat(2,1fr)}
+.form-row-3,.form-row-4{grid-template-columns:1fr 1fr}
+}
 </style>
 </head>
 <body>
 
-<!-- Login Page -->
 <div id="loginPage">
 <div class="login-box">
 <h1>🏪 TK Store Manager</h1>
-<p class="sub">店铺管理系统 / Store Management</p>
-<div class="form-group">
-<label>用户名 / Username</label>
-<input type="text" id="loginUser" autocomplete="username" autocapitalize="off">
-</div>
-<div class="form-group">
-<label>密码 / Password</label>
-<input type="password" id="loginPass" autocomplete="current-password">
-</div>
-<button class="btn btn-pri" onclick="doLogin()">登录 / Login</button>
+<p class="sub">店铺管理系统 · Store Management System</p>
+<div class="fg"><label>用户名 Username</label><input type="text" id="loginUser" autocomplete="username" autocapitalize="off"></div>
+<div class="fg"><label>密码 Password</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+<button class="btn btn-pri" onclick="doLogin()">登录 Login</button>
 <div class="err-msg" id="loginErr"></div>
 </div>
 </div>
 
-<!-- Main App -->
-<div id="app" style="display:none">
-<div class="topbar">
-<h2>🏪 TK Store</h2>
-<div class="topbar-right">
-<span class="user-name" id="userName"></span>
-<button onclick="doLogout()">退出/Logout</button>
+<div id="app">
+<div class="app-wrap">
+<aside class="sidebar">
+<div class="sidebar-brand"><h2>🏪 TK Store</h2><p>Store Management System</p></div>
+<nav class="sidebar-nav" id="sideNav"></nav>
+<div class="sidebar-footer">
+<div class="sf-name" id="sfName"></div>
+<div class="sf-role" id="sfRole"></div>
+<button onclick="doLogout()">退出登录 Logout</button>
 </div>
+</aside>
+<div class="main"><div id="mainBody"></div></div>
 </div>
-<div class="main-content">
-<div id="tab-home" class="tab-content active"></div>
-<div id="tab-tasks" class="tab-content"></div>
-<div id="tab-score" class="tab-content"></div>
-<div id="tab-issues" class="tab-content"></div>
-<div id="tab-sop" class="tab-content"></div>
-<div id="tab-stores" class="tab-content"></div>
-<div id="tab-users" class="tab-content"></div>
-</div>
-<nav class="bottom-nav" id="bottomNav"></nav>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-// ========================================
-// CONFIG
-// ========================================
-const SUPABASE_URL='https://glohjxbpgqqzspytnbfm.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsb2hqeGJwZ3FxenNweXRuYmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwODkyODEsImV4cCI6MjA5MDY2NTI4MX0.DF10KD-ePvAoiZoEGpvai5w1HVQeUPYQIHuLa3YXCps';
+const SB_URL='https://glohjxbpgqqzspytnbfm.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsb2hqeGJwZ3FxenNweXRuYmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwODkyODEsImV4cCI6MjA5MDY2NTI4MX0.DF10KD-ePvAoiZoEGpvai5w1HVQeUPYQIHuLa3YXCps';
+let U=null,stores=[],staffList=[],currentTab='home';
 
-// State
-let currentUser=null;
-let stores=[];
-let currentTab='home';
-
-// ========================================
-// SUPABASE CLIENT (lightweight)
-// ========================================
+// ===== SUPABASE =====
 const sb={
-  async rpc(fn,params={}){
-    const r=await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`,{
-      method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`},
-      body:JSON.stringify(params)
-    });
-    return r.json();
-  },
-  async select(table,query=''){
-    const r=await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`,{
-      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
-    });
-    return r.json();
-  },
-  async insert(table,data){
-    const r=await fetch(`${SUPABASE_URL}/rest/v1/${table}`,{
-      method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,
-        'Authorization':`Bearer ${SUPABASE_KEY}`,'Prefer':'return=representation'},
-      body:JSON.stringify(data)
-    });
-    return r.json();
-  },
-  async update(table,match,data){
-    const params=Object.entries(match).map(([k,v])=>`${k}=eq.${v}`).join('&');
-    const r=await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`,{
-      method:'PATCH',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,
-        'Authorization':`Bearer ${SUPABASE_KEY}`,'Prefer':'return=representation'},
-      body:JSON.stringify(data)
-    });
-    return r.json();
-  },
-  async upsert(table,data){
-    const r=await fetch(`${SUPABASE_URL}/rest/v1/${table}`,{
-      method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,
-        'Authorization':`Bearer ${SUPABASE_KEY}`,'Prefer':'return=representation,resolution=merge-duplicates'},
-      body:JSON.stringify(data)
-    });
-    return r.json();
-  },
-  async del(table,match){
-    const params=Object.entries(match).map(([k,v])=>`${k}=eq.${v}`).join('&');
-    return fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`,{
-      method:'DELETE',headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`}
-    });
-  }
+  h:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`},
+  async rpc(fn,p={}){const r=await fetch(`${SB_URL}/rest/v1/rpc/${fn}`,{method:'POST',headers:sb.h,body:JSON.stringify(p)});return r.json()},
+  async get(t,q=''){const r=await fetch(`${SB_URL}/rest/v1/${t}?${q}`,{headers:sb.h});return r.json()},
+  async post(t,d){const r=await fetch(`${SB_URL}/rest/v1/${t}`,{method:'POST',headers:{...sb.h,'Prefer':'return=representation'},body:JSON.stringify(d)});return r.json()},
+  async patch(t,m,d){const p=Object.entries(m).map(([k,v])=>`${k}=eq.${v}`).join('&');const r=await fetch(`${SB_URL}/rest/v1/${t}?${p}`,{method:'PATCH',headers:{...sb.h,'Prefer':'return=representation'},body:JSON.stringify(d)});return r.json()},
+  async upsert(t,d){const r=await fetch(`${SB_URL}/rest/v1/${t}`,{method:'POST',headers:{...sb.h,'Prefer':'return=representation,resolution=merge-duplicates'},body:JSON.stringify(d)});return r.json()},
+  async del(t,m){const p=Object.entries(m).map(([k,v])=>`${k}=eq.${v}`).join('&');return fetch(`${SB_URL}/rest/v1/${t}?${p}`,{method:'DELETE',headers:sb.h})}
 };
 
-// ========================================
-// TASKS DEFINITION
-// ========================================
+// ===== TASKS =====
 const TASKS=[
-  {period:'morning',key:'morning_msg',zh:'检查并回复所有店铺客户消息',en:'Check & reply ALL customer messages across all stores',icon:'💬'},
-  {period:'morning',key:'morning_after',zh:'检查新的售后请求并分类处理',en:'Check new after-sales requests and categorize',icon:'📋'},
-  {period:'morning',key:'morning_orders',zh:'检查即将超时的待发货订单',en:'Check orders near auto-cancel deadline',icon:'📦'},
-  {period:'afternoon',key:'mid_msg',zh:'再次检查未回复的客户消息',en:'Second round: check unreplied messages',icon:'💬'},
-  {period:'afternoon',key:'mid_reviews',zh:'检查新的1-2星差评，按SOP处理',en:'Check new 1-2 star reviews, follow SOP',icon:'⭐'},
-  {period:'afternoon',key:'mid_returns',zh:'检查新的退货退款请求，记录原因',en:'Check new return/refund requests, log reasons',icon:'🔄'},
-  {period:'evening',key:'eve_msg',zh:'最后一轮消息回复，确保零未读',en:'Final message sweep - ensure ZERO unread',icon:'✅'},
-  {period:'evening',key:'eve_summary',zh:'登记当天发现的问题到问题日志',en:'Log all issues found today in Issue Log',icon:'📝'},
-  {period:'evening',key:'eve_scores',zh:'如Store Rating有更新，记录分数',en:'Record Store Rating scores if updated',icon:'📊'},
+  {p:'morning',k:'msg1',zh:'检查并回复所有客户消息',en:'Check & reply ALL customer messages',fil:'Suriin at sagutin LAHAT ng mensahe ng customer',icon:'💬'},
+  {p:'morning',k:'aftersale',zh:'检查新的售后请求并分类处理',en:'Check new after-sales requests and handle',fil:'Suriin ang mga bagong after-sales request at ayusin',icon:'📋'},
+  {p:'morning',k:'orders',zh:'检查即将超时的待发货订单',en:'Check orders near auto-cancel deadline',fil:'Suriin ang mga order na malapit mag-auto-cancel',icon:'📦'},
+  {p:'afternoon',k:'msg2',zh:'再次检查未回复的客户消息',en:'Second check: reply unreplied messages',fil:'Pangalawang check: sagutin ang hindi pa nasasagot na mensahe',icon:'💬'},
+  {p:'afternoon',k:'reviews',zh:'检查新的1-2星差评并按SOP处理',en:'Check new 1-2 star reviews, follow SOP',fil:'Suriin ang bagong 1-2 star na review, sundin ang SOP',icon:'⭐'},
+  {p:'afternoon',k:'returns',zh:'检查新的退货退款请求，记录原因',en:'Check new return/refund requests, log reasons',fil:'Suriin ang bagong return/refund request, i-record ang dahilan',icon:'🔄'},
+  {p:'evening',k:'msg3',zh:'最后一轮消息检查，确保零未读',en:'Final message sweep — ensure ZERO unread',fil:'Huling check ng mensahe — siguraduhing ZERO unread',icon:'✅'},
+  {p:'evening',k:'logissues',zh:'登记当天发现的问题到问题日志',en:'Log all issues found today in Issue Log',fil:'I-log ang lahat ng issue na nahanap ngayon',icon:'📝'},
+  {p:'evening',k:'scores',zh:'如Store Rating有更新，记录分数',en:'Record Store Rating if updated today',fil:'I-record ang Store Rating kung na-update ngayon',icon:'📊'},
 ];
+const PERIODS={morning:{zh:'☀️ 早班 9:00前',en:'Morning before 9:00',fil:'Umaga bago mag-9:00'},
+  afternoon:{zh:'🌤️ 午间 13:00-14:00',en:'Afternoon 13:00-14:00',fil:'Tanghali 13:00-14:00'},
+  evening:{zh:'🌙 下班前 17:00',en:'Evening before 17:00',fil:'Bago mag-uwian 17:00'}};
+const ISSUE_TYPES=[{v:'wrong_item',zh:'发错货',en:'Wrong Item',fil:'Maling Item'},{v:'damaged',zh:'破损',en:'Damaged',fil:'Sira/Basag'},
+  {v:'missing_item',zh:'缺件',en:'Missing Item',fil:'Kulang ang Item'},{v:'defective',zh:'瑕疵品',en:'Defective',fil:'May Depekto'},{v:'other',zh:'其他',en:'Other',fil:'Iba pa'}];
+const RESULTS=[{v:'pending',zh:'处理中',en:'Pending',fil:'Pending'},{v:'resolved',zh:'已解决',en:'Resolved',fil:'Naayos na'},
+  {v:'refunded',zh:'已退款',en:'Refunded',fil:'Na-refund na'},{v:'replaced',zh:'已补发',en:'Replaced',fil:'Na-replace na'}];
 
-const ISSUE_TYPES=[
-  {value:'wrong_item',zh:'发错货',en:'Wrong Item'},
-  {value:'damaged',zh:'破损',en:'Damaged'},
-  {value:'missing_item',zh:'缺件',en:'Missing Item'},
-  {value:'defective',zh:'瑕疵品',en:'Defective'},
-  {value:'other',zh:'其他',en:'Other'},
-];
+// ===== HELPERS =====
+const today=()=>new Date().toISOString().slice(0,10);
+const sColor=v=>v>=4?'sv-good':v>=3?'sv-mid':'sv-bad';
+const pClass=(done,total)=>done===total?'p-full':done>0?'p-partial':'p-none';
+const issueTag=t=>{const cls={wrong_item:'wrong',damaged:'damaged',missing_item:'missing',defective:'defective',other:'other'};
+  const i=ISSUE_TYPES.find(x=>x.v===t);return `<span class="tag tag-${cls[t]||'other'}">${i?i.zh+' '+i.en:t}</span>`};
+const resultTag=r=>{const i=RESULTS.find(x=>x.v===r);return `<span class="tag tag-${r}">${i?i.zh+' '+i.en:r}</span>`};
+const storeOpts=(sel='')=>'<option value="">-- 选择店铺 Select Store --</option>'+stores.map(s=>`<option value="${s.id}"${s.id===sel?' selected':''}>${s.store_name}</option>`).join('');
+const staffOpts=(sel='')=>'<option value="">-- 未指派 Unassigned --</option>'+staffList.map(s=>`<option value="${s.id}"${s.id===sel?' selected':''}>${s.display_name}</option>`).join('');
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
-const RESULTS=[
-  {value:'pending',zh:'处理中',en:'Pending'},
-  {value:'resolved',zh:'已解决',en:'Resolved'},
-  {value:'refunded',zh:'已退款',en:'Refunded'},
-  {value:'replaced',zh:'已补发',en:'Replaced'},
-];
-
-const PERIOD_LABELS={morning:{zh:'☀️ 早班 9:00前',en:'Morning before 9:00'},
-  afternoon:{zh:'🌤️ 午间 13:00-14:00',en:'Afternoon 13:00-14:00'},
-  evening:{zh:'🌙 下班前 17:00',en:'Evening before 17:00'}};
-
-// ========================================
-// AUTH
-// ========================================
+// ===== AUTH =====
 async function doLogin(){
-  const u=document.getElementById('loginUser').value.trim();
-  const p=document.getElementById('loginPass').value;
-  const err=document.getElementById('loginErr');
-  if(!u||!p){err.textContent='请输入用户名和密码 / Please enter username and password';return;}
-  err.textContent='登录中... / Logging in...';
-  try{
-    const res=await sb.rpc('tks_authenticate',{p_username:u,p_password:p});
-    if(res.success){
-      currentUser=res.user;
-      sessionStorage.setItem('tks_user',JSON.stringify(res.user));
-      showApp();
-    }else{err.textContent=res.message||'Login failed';}
-  }catch(e){err.textContent='网络错误 / Network error: '+e.message;}
+  const u=document.getElementById('loginUser').value.trim(),p=document.getElementById('loginPass').value,err=document.getElementById('loginErr');
+  if(!u||!p){err.textContent='请输入用户名和密码';return}
+  err.textContent='登录中...';
+  try{const r=await sb.rpc('tks_authenticate',{p_username:u,p_password:p});
+    if(r.success){U=r.user;sessionStorage.setItem('tks_u',JSON.stringify(U));initApp()}
+    else err.textContent=r.message||'Login failed';
+  }catch(e){err.textContent='网络错误: '+e.message}
 }
+function doLogout(){U=null;sessionStorage.removeItem('tks_u');document.getElementById('app').style.display='none';
+  document.getElementById('loginPage').style.display='flex';document.getElementById('loginPass').value='';document.getElementById('loginErr').textContent=''}
+function autoLogin(){const s=sessionStorage.getItem('tks_u');if(s)try{U=JSON.parse(s);initApp()}catch(e){}}
 
-function doLogout(){
-  currentUser=null;
-  sessionStorage.removeItem('tks_user');
-  document.getElementById('app').style.display='none';
-  document.getElementById('loginPage').style.display='flex';
-  document.getElementById('loginPass').value='';
-  document.getElementById('loginErr').textContent='';
+// ===== INIT =====
+async function initApp(){
+  document.getElementById('loginPage').style.display='none';document.getElementById('app').style.display='block';
+  document.getElementById('sfName').textContent=U.display_name;document.getElementById('sfRole').textContent=U.role==='admin'?'管理员 Admin':'员工 Staff';
+  await loadData();buildNav();go('home');
 }
-
-function tryAutoLogin(){
-  const saved=sessionStorage.getItem('tks_user');
-  if(saved){try{currentUser=JSON.parse(saved);showApp();}catch(e){}}
+async function loadData(){
+  stores=await sb.get('tks_stores','is_active=eq.true&order=store_name');
+  if(!Array.isArray(stores))stores=[];
+  try{const r=await sb.rpc('tks_get_staff_list');staffList=Array.isArray(r)?r:r||[]}catch(e){staffList=[]}
+  if(!Array.isArray(staffList))staffList=[];
 }
-
-// ========================================
-// APP INIT
-// ========================================
-async function showApp(){
-  document.getElementById('loginPage').style.display='none';
-  document.getElementById('app').style.display='flex';
-  document.getElementById('userName').textContent=currentUser.display_name;
-  buildNav();
-  await loadStores();
-  switchTab('home');
-}
+function myStores(){return U.role==='admin'?stores:stores.filter(s=>s.assigned_to===U.id)}
 
 function buildNav(){
-  const isAdmin=currentUser.role==='admin';
-  let tabs=[
-    {id:'home',icon:'🏠',zh:'首页',en:'Home'},
-    {id:'tasks',icon:'✅',zh:'任务',en:'Tasks'},
-    {id:'score',icon:'📊',zh:'分数',en:'Score'},
-    {id:'issues',icon:'⚠️',zh:'问题',en:'Issues'},
-    {id:'sop',icon:'📖',zh:'SOP',en:'SOP'},
-  ];
-  if(isAdmin){
-    tabs.push({id:'stores',icon:'🏪',zh:'店铺',en:'Stores'});
-    tabs.push({id:'users',icon:'👥',zh:'用户',en:'Users'});
-  }
-  document.getElementById('bottomNav').innerHTML=tabs.map(t=>
-    `<button class="nav-item${t.id===currentTab?' active':''}" onclick="switchTab('${t.id}')">
-      <span class="nav-icon">${t.icon}</span>${t.zh}`).join('');
+  const a=U.role==='admin';
+  let tabs=[{id:'home',icon:'🏠',label:'首页 Home'},{id:'tasks',icon:'✅',label:'任务 Tasks'},{id:'score',icon:'📊',label:'分数 Scores'},
+    {id:'issues',icon:'⚠️',label:'问题 Issues'},{id:'sop',icon:'📖',label:'SOP'}];
+  if(a)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
+  document.getElementById('sideNav').innerHTML=tabs.map(t=>t.id==='_sep'?'<div class="nav-sep"></div>':
+    `<button class="nav-item${t.id===currentTab?' active':''}" onclick="go('${t.id}')"><span class="ni">${t.icon}</span>${t.label}</button>`).join('');
 }
 
-async function switchTab(id){
-  currentTab=id;
-  document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
-  document.getElementById('tab-'+id).classList.add('active');
-  document.querySelectorAll('.nav-item').forEach((el,i)=>{
-    el.classList.toggle('active',el.onclick.toString().includes("'"+id+"'"));
-  });
-  // Render
-  if(id==='home') await renderHome();
-  else if(id==='tasks') await renderTasks();
-  else if(id==='score') renderScoreForm();
-  else if(id==='issues') renderIssueForm();
-  else if(id==='sop') renderSOP();
-  else if(id==='stores') renderStores();
-  else if(id==='users') await renderUsers();
+function go(id){
+  currentTab=id;buildNav();
+  const m=document.getElementById('mainBody');
+  const render={home:rHome,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers};
+  if(render[id])render[id](m);
 }
 
-// ========================================
-// DATA
-// ========================================
-async function loadStores(){
-  stores=await sb.select('tks_stores','is_active=eq.true&order=store_name');
-  if(!Array.isArray(stores))stores=[];
+// ===== HOME =====
+async function rHome(el){
+  const ms=myStores();
+  const checks=await sb.get('tks_checklist',`check_date=eq.${today()}&completed=eq.true`);
+  const ck=Array.isArray(checks)?checks:[];
+  const myCk=ck.filter(c=>c.completed_by===U.id);
+  const myTotal=ms.length*TASKS.length;
+  const myDone=myCk.length;
+  // Latest scores
+  const scores=await sb.get('tks_scores','order=record_date.desc&limit=100');
+  const latest={};
+  if(Array.isArray(scores))scores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s});
+
+  let h=`<div class="main-header"><h1>👋 ${U.display_name}</h1><p>${new Date().toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>`;
+  h+=`<div class="stats-row">
+    <div class="stat-card"><div class="stat-val ${myDone===myTotal&&myTotal>0?'sv-good':'sv-mid'}">${myDone}/${myTotal}</div><div class="stat-label">今日任务 My Tasks</div></div>
+    <div class="stat-card"><div class="stat-val">${ms.length}</div><div class="stat-label">${U.role==='admin'?'全部店铺 All Stores':'我的店铺 My Stores'}</div></div>
+    <div class="stat-card"><div class="stat-val">${Object.keys(latest).length}</div><div class="stat-label">有记录 With Scores</div></div>
+    <div class="stat-card"><div class="stat-val">${stores.filter(s=>!s.assigned_to).length}</div><div class="stat-label">未指派 Unassigned</div></div>
+  </div>`;
+  h+=`<div class="quick-actions">
+    <div class="action-btn" onclick="go('tasks')"><div class="ai">✅</div><div class="az">今日任务</div><div class="ae">Today's Checklist</div></div>
+    <div class="action-btn" onclick="go('score')"><div class="ai">📊</div><div class="az">记录分数</div><div class="ae">Record Scores</div></div>
+    <div class="action-btn" onclick="go('issues')"><div class="ai">⚠️</div><div class="az">登记问题</div><div class="ae">Log Issues</div></div>
+    <div class="action-btn" onclick="go('sop')"><div class="ai">📖</div><div class="az">SOP流程</div><div class="ae">SOP Reference</div></div>
+  </div>`;
+  // Latest scores summary
+  if(Object.keys(latest).length>0){
+    h+=`<div class="sec-title">各店铺最新分数 Latest Store Scores</div><div class="card"><table class="score-table"><thead><tr>
+      <th>店铺 Store</th><th>总分</th><th>产品 Product</th><th>物流 Fulfill</th><th>客服 Service</th><th>日期</th></tr></thead><tbody>`;
+    for(const s of stores){const sc=latest[s.id];if(!sc)continue;
+      h+=`<tr><td><b>${esc(s.store_name)}</b></td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
+        <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}</td>
+        <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}</td>
+        <td class="${sColor(sc.customer_service)}">${sc.customer_service??'-'}</td>
+        <td style="color:var(--text3)">${sc.record_date?.slice(5)||'-'}</td></tr>`}
+    h+=`</tbody></table></div>`}
+  el.innerHTML=h;
 }
 
-function storeOptions(selected=''){
-  return '<option value="">-- 选择店铺 / Select Store --</option>'+
-    stores.map(s=>`<option value="${s.id}"${s.id===selected?' selected':''}>${s.store_name}</option>`).join('');
-}
+// ===== TASKS =====
+async function rTasks(el){
+  const ms=myStores();
+  const checks=await sb.get('tks_checklist',`check_date=eq.${today()}&completed=eq.true`);
+  const ck=Array.isArray(checks)?checks:[];
+  let h=`<div class="main-header"><h1>✅ 今日任务清单</h1><p>Today's Checklist — ${today()}</p></div>`;
 
-function getIssueTags(type){
-  const cls={'wrong_item':'wrong','damaged':'damaged','missing_item':'missing','defective':'defective','other':'other'};
-  const t=ISSUE_TYPES.find(i=>i.value===type);
-  return `<span class="tag tag-${cls[type]||'other'}">${t?t.zh+'/'+t.en:type}</span>`;
-}
-
-function getResultTag(r){
-  const t=RESULTS.find(i=>i.value===r);
-  return `<span class="tag tag-${r}">${t?t.zh+'/'+t.en:r}</span>`;
-}
-
-function scoreColor(v){return v>=4?'score-good':v>=3?'score-mid':'score-bad';}
-
-function toast(msg){
-  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2500);
-}
-
-function today(){return new Date().toISOString().slice(0,10);}
-
-// ========================================
-// HOME
-// ========================================
-async function renderHome(){
-  const el=document.getElementById('tab-home');
-  // Load today's checklist
-  const checks=await sb.select('tks_checklist',`check_date=eq.${today()}&completed_by=eq.${currentUser.id}&completed=eq.true`);
-  const done=Array.isArray(checks)?checks.length:0;
-  const total=TASKS.length;
-  
-  // Load recent issues
-  const issues=await sb.select('tks_issues','order=created_at.desc&limit=5');
-  
-  let html=`
-    <div class="card">
-      <h3>👋 ${currentUser.display_name}</h3>
-      <p class="label-en" style="font-size:.85rem;color:var(--text2)">${new Date().toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>
-    </div>
-    <div class="stats-row">
-      <div class="stat-card"><div class="stat-val ${done===total?'score-good':'score-mid'}">${done}/${total}</div><div class="stat-label">今日任务 Tasks</div></div>
-      <div class="stat-card"><div class="stat-val">${stores.length}</div><div class="stat-label">店铺 Stores</div></div>
-      <div class="stat-card"><div class="stat-val">${Array.isArray(issues)?issues.filter(i=>i.result==='pending').length:0}</div><div class="stat-label">待处理 Pending</div></div>
-    </div>
-    <div class="quick-actions">
-      <div class="action-btn" onclick="switchTab('tasks')">
-        <div class="action-icon">✅</div>
-        <div class="action-zh">今日任务</div>
-        <div class="action-en">Today's Checklist</div>
-      </div>
-      <div class="action-btn" onclick="switchTab('score')">
-        <div class="action-icon">📊</div>
-        <div class="action-zh">记录分数</div>
-        <div class="action-en">Record Score</div>
-      </div>
-      <div class="action-btn" onclick="switchTab('issues')">
-        <div class="action-icon">⚠️</div>
-        <div class="action-zh">登记问题</div>
-        <div class="action-en">Log Issue</div>
-      </div>
-      <div class="action-btn" onclick="switchTab('sop')">
-        <div class="action-icon">📖</div>
-        <div class="action-zh">SOP流程</div>
-        <div class="action-en">SOP Reference</div>
-      </div>
-    </div>`;
-  
-  if(Array.isArray(issues)&&issues.length>0){
-    html+=`<div class="section-title">最近问题 / Recent Issues</div><div class="card">`;
-    for(const iss of issues){
-      const store=stores.find(s=>s.id===iss.store_id);
-      html+=`<div class="issue-item">
-        <div class="issue-header"><span class="issue-store">${store?store.store_name:'—'}</span>
-        <span class="issue-date">${iss.issue_date}</span></div>
-        <div>${getIssueTags(iss.issue_type)} ${getResultTag(iss.result)}</div>
-        ${iss.order_id?`<div class="issue-order">Order: ${iss.order_id}</div>`:''}
-        ${iss.description?`<div class="issue-desc">${iss.description}</div>`:''}
-      </div>`;
+  // Admin overview
+  if(U.role==='admin'){
+    h+=`<div class="sec-title">📋 团队概览 Team Overview</div>`;
+    const staffMap={};
+    staffList.filter(s=>s.is_active).forEach(s=>{staffMap[s.id]={name:s.display_name,stores:stores.filter(st=>st.assigned_to===s.id),done:0,total:0}});
+    for(const uid in staffMap){
+      const u=staffMap[uid];u.total=u.stores.length*TASKS.length;
+      u.done=ck.filter(c=>c.completed_by===uid).length;
     }
-    html+=`</div>`;
+    for(const uid in staffMap){
+      const u=staffMap[uid];if(u.stores.length===0)continue;
+      const pc=pClass(u.done,u.total);
+      h+=`<div class="staff-overview"><div class="staff-ov-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
+        <h4>👤 ${u.name}</h4><span class="progress ${pc}">${u.done}/${u.total}</span></div>
+        <div class="staff-ov-detail hidden">`;
+      for(const st of u.stores){
+        const stDone=ck.filter(c=>c.completed_by===uid&&c.store_id===st.id).length;
+        const stPc=pClass(stDone,TASKS.length);
+        h+=`<div class="staff-store-row"><span>🏪 ${esc(st.store_name)}</span><span class="progress ${stPc}">${stDone}/${TASKS.length}</span></div>`}
+      h+=`</div></div>`}
+    h+=`<div class="nav-sep" style="margin:20px 0;border-color:var(--border)"></div>`;
   }
-  el.innerHTML=html;
+
+  // My tasks per store
+  h+=`<div class="sec-title">${U.role==='admin'?'我的任务 My Tasks':'我负责的店铺 My Assigned Stores'}</div>`;
+  if(ms.length===0){h+=`<div class="card" style="text-align:center;color:var(--text3);padding:40px">暂无指派的店铺<br>No stores assigned to you</div>`;el.innerHTML=h;return}
+
+  for(const store of ms){
+    const storeCk=ck.filter(c=>c.completed_by===U.id&&c.store_id===store.id);
+    const doneKeys=new Set(storeCk.map(c=>c.task_key));
+    const done=doneKeys.size;const pc=pClass(done,TASKS.length);
+    h+=`<div class="store-checklist"><div class="store-cl-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
+      <h4>🏪 ${esc(store.store_name)}</h4><span class="progress ${pc}">${done}/${TASKS.length}</span></div>
+      <div class="store-cl-body">`;
+    let lp='';
+    for(const t of TASKS){
+      if(t.p!==lp){lp=t.p;const pl=PERIODS[t.p];h+=`<div class="period-label">${pl.zh} · ${pl.en} · ${pl.fil}</div>`}
+      const d=doneKeys.has(t.k);
+      h+=`<div class="ck-item${d?' done':''}" onclick="toggleCk('${t.k}','${store.id}',${!d})">
+        <div class="ck-box">${d?'✓':''}</div>
+        <div class="ck-txt"><div class="t-zh">${t.icon} ${t.zh}</div><div class="t-en">${t.en}</div><div class="t-fil">${t.fil}</div>
+        ${d?'<div class="ck-time">✓ Done</div>':''}</div></div>`}
+    h+=`</div></div>`}
+  el.innerHTML=h;
+}
+async function toggleCk(key,storeId,complete){
+  if(complete)await sb.upsert('tks_checklist',{check_date:today(),task_key:key,store_id:storeId,completed:true,completed_by:U.id,completed_at:new Date().toISOString()});
+  else await sb.del('tks_checklist',{check_date:today(),task_key:key,completed_by:U.id,store_id:storeId});
+  rTasks(document.getElementById('mainBody'));
 }
 
-// ========================================
-// TASKS (Checklist)
-// ========================================
-async function renderTasks(){
-  const el=document.getElementById('tab-tasks');
-  const checks=await sb.select('tks_checklist',`check_date=eq.${today()}&completed_by=eq.${currentUser.id}&completed=eq.true`);
-  const doneKeys=new Set(Array.isArray(checks)?checks.map(c=>c.task_key):[]);
-  
-  let html=`<div class="card"><h3>✅ 今日任务清单</h3><p class="label-en">Today's Checklist — ${today()}</p></div>`;
-  let lastPeriod='';
-  for(const task of TASKS){
-    if(task.period!==lastPeriod){
-      if(lastPeriod)html+=`</div>`;
-      lastPeriod=task.period;
-      const pl=PERIOD_LABELS[task.period];
-      html+=`<div class="check-period">${pl.zh} <span style="font-weight:400;color:var(--text3)">${pl.en}</span></div><div class="card" style="padding:4px 12px">`;
-    }
-    const done=doneKeys.has(task.key);
-    html+=`<div class="check-item${done?' done':''}" onclick="toggleTask('${task.key}',${!done})">
-      <div class="check-box">${done?'✓':''}</div>
-      <div class="check-text">
-        <div class="zh">${task.icon} ${task.zh}</div>
-        <div class="en">${task.en}</div>
-        ${done?`<div class="check-time">✓ Completed</div>`:''}
-      </div>
-    </div>`;
-  }
-  html+=`</div>`;
-  el.innerHTML=html;
-}
+// ===== SCORES =====
+async function rScore(el){
+  const ms=myStores();
+  // Load all latest scores
+  const allScores=await sb.get('tks_scores','order=record_date.desc&limit=200');
+  const latest={};if(Array.isArray(allScores))allScores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s});
 
-async function toggleTask(key,complete){
-  if(complete){
-    await sb.upsert('tks_checklist',{check_date:today(),task_key:key,completed:true,
-      completed_by:currentUser.id,completed_at:new Date().toISOString()});
-  }else{
-    await sb.del('tks_checklist',{check_date:today(),task_key:key,completed_by:currentUser.id});
-  }
-  renderTasks();
-}
+  let h=`<div class="main-header"><h1>📊 店铺分数</h1><p>Store Scores</p></div>`;
+  // Summary table
+  if(Object.keys(latest).length>0){
+    h+=`<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr>
+      <th>店铺</th><th>总分</th><th>产品45%</th><th>物流40%</th><th>客服15%</th><th>差评率%</th><th>退款率%</th><th>12H回复%</th><th>日期</th></tr></thead><tbody>`;
+    for(const s of stores){const sc=latest[s.id];if(!sc)continue;
+      h+=`<tr><td><b>${esc(s.store_name)}</b></td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
+        <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}</td>
+        <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}</td>
+        <td class="${sColor(sc.customer_service)}">${sc.customer_service??'-'}</td>
+        <td>${sc.negative_review_rate??'-'}</td><td>${sc.rr_rate??'-'}</td><td>${sc.response_rate_12h??'-'}</td>
+        <td style="color:var(--text3)">${sc.record_date?.slice(5)}</td></tr>`}
+    h+=`</tbody></table></div>`}
 
-// ========================================
-// SCORE
-// ========================================
-function renderScoreForm(){
-  const el=document.getElementById('tab-score');
-  el.innerHTML=`
-    <div class="card">
-      <h3>📊 记录店铺分数</h3>
-      <p class="label-en">Record Store Rating</p>
+  // Entry form
+  h+=`<div class="card"><h3>➕ 录入分数 Record Score</h3><div class="sub-label">Fill in the scores from Seller Center</div>
+    <div class="form-row" style="margin-top:16px">
+      <div class="fg"><label>店铺 Store *</label><select id="scStore" onchange="loadHistory()">${storeOpts()}</select></div>
+      <div class="fg"><label>日期 Date</label><input type="date" id="scDate" value="${today()}"></div>
     </div>
-    <div class="card">
-      <div class="form-group">
-        <label>店铺 / Store</label>
-        <select id="scoreStore" onchange="loadScoreHistory()">${storeOptions()}</select>
-      </div>
-      <div class="form-group">
-        <label>日期 / Date</label>
-        <input type="date" id="scoreDate" value="${today()}">
-      </div>
-      <div class="section-title">主要分数 / Main Scores (0-5)</div>
-      <div class="score-group">
-        <div class="form-group"><label>总分 Overall</label><input type="number" id="sOverall" min="0" max="5" step="0.1" placeholder="e.g. 2.4"></div>
-        <div class="form-group"><label>产品 Product</label><input type="number" id="sProduct" min="0" max="5" step="0.1" placeholder="e.g. 1.0" oninput="calcScore()"></div>
-        <div class="form-group"><label>物流 Fulfillment</label><input type="number" id="sFulfill" min="0" max="5" step="0.1" placeholder="e.g. 4.4" oninput="calcScore()"></div>
-        <div class="form-group"><label>客服 Service</label><input type="number" id="sService" min="0" max="5" step="0.1" placeholder="e.g. 2.2" oninput="calcScore()"></div>
-      </div>
-      <div class="score-calc" id="scoreCalc">填入三项分数自动计算 / Auto-calculates from 3 scores</div>
-      
-      <span class="detail-toggle" onclick="document.getElementById('scoreDetails').classList.toggle('hidden')">
-        ▸ 展开详细指标 / Show detailed metrics
-      </span>
-      <div id="scoreDetails" class="hidden">
-        <div class="section-title">详细指标 / Detailed Metrics (%)</div>
-        <div class="score-group">
-          <div class="form-group"><label>差评率 Neg.Review%</label><input type="number" id="sNegReview" min="0" max="100" step="0.01" placeholder="%"></div>
-          <div class="form-group"><label>退款率 R&R%</label><input type="number" id="sRR" min="0" max="100" step="0.01" placeholder="%"></div>
-          <div class="form-group"><label>发货率 FDR%</label><input type="number" id="sFDR" min="0" max="100" step="0.01" placeholder="%"></div>
-          <div class="form-group"><label>取消率 SFCR%</label><input type="number" id="sSFCR" min="0" max="100" step="0.01" placeholder="%"></div>
-          <div class="form-group"><label>投诉率 Complaint%</label><input type="number" id="sComplaint" min="0" max="100" step="0.01" placeholder="%"></div>
-          <div class="form-group"><label>12H回复率 Resp%</label><input type="number" id="sResp" min="0" max="100" step="0.01" placeholder="%"></div>
-        </div>
-      </div>
-      <button class="btn btn-pri" onclick="saveScore()" style="margin-top:12px">💾 保存分数 / Save Score</button>
+    <div class="sec-title">主要分数 Main Scores (0-5)</div>
+    <div class="form-row-4">
+      <div class="fg"><label>总分 Overall</label><input type="number" id="sO" min="0" max="5" step="0.1" placeholder="2.4"></div>
+      <div class="fg"><label>产品 Product</label><input type="number" id="sP" min="0" max="5" step="0.1" placeholder="1.0" oninput="calcSc()"></div>
+      <div class="fg"><label>物流 Fulfill</label><input type="number" id="sF" min="0" max="5" step="0.1" placeholder="4.4" oninput="calcSc()"></div>
+      <div class="fg"><label>客服 Service</label><input type="number" id="sS" min="0" max="5" step="0.1" placeholder="2.2" oninput="calcSc()"></div>
     </div>
-    <div id="scoreHistory"></div>`;
+    <div class="calc-box" id="calcBox">填入三项分数自动计算 Auto-calculates from 3 scores</div>
+    <span class="detail-toggle" onclick="document.getElementById('detailFields').classList.toggle('hidden')">▸ 展开详细指标 Show detailed metrics</span>
+    <div id="detailFields" class="hidden">
+      <div class="sec-title">详细指标 Detailed Metrics (%)</div>
+      <div class="form-row-3">
+        <div class="fg"><label>差评率 Neg.Review%</label><input type="number" id="sNR" min="0" max="100" step="0.01"></div>
+        <div class="fg"><label>退款率 R&R%</label><input type="number" id="sRR" min="0" max="100" step="0.01"></div>
+        <div class="fg"><label>发货率 FDR%</label><input type="number" id="sFDR" min="0" max="100" step="0.01"></div>
+        <div class="fg"><label>取消率 SFCR%</label><input type="number" id="sSFCR" min="0" max="100" step="0.01"></div>
+        <div class="fg"><label>投诉率 Complaint%</label><input type="number" id="sCR" min="0" max="100" step="0.01"></div>
+        <div class="fg"><label>12H回复率%</label><input type="number" id="sRESP" min="0" max="100" step="0.01"></div>
+      </div>
+    </div>
+    <button class="btn btn-pri" onclick="saveSc()" style="margin-top:16px;max-width:300px">💾 保存分数 Save Score</button>
+  </div>
+  <div id="scoreHist"></div>`;
+  el.innerHTML=h;
 }
-
-function calcScore(){
-  const p=parseFloat(document.getElementById('sProduct').value)||0;
-  const f=parseFloat(document.getElementById('sFulfill').value)||0;
-  const c=parseFloat(document.getElementById('sService').value)||0;
-  if(p||f||c){
-    const calc=(p*0.45+f*0.40+c*0.15).toFixed(1);
-    document.getElementById('scoreCalc').innerHTML=
-      `公式 / Formula: ${p}×45% + ${f}×40% + ${c}×15% = <b>${calc}</b>`;
-    if(!document.getElementById('sOverall').value)document.getElementById('sOverall').value=calc;
-  }
+function calcSc(){
+  const p=parseFloat(document.getElementById('sP').value)||0,f=parseFloat(document.getElementById('sF').value)||0,s=parseFloat(document.getElementById('sS').value)||0;
+  if(p||f||s){const c=(p*.45+f*.40+s*.15).toFixed(1);
+    document.getElementById('calcBox').innerHTML=`公式: <b>${p}</b>×45% + <b>${f}</b>×40% + <b>${s}</b>×15% = <b style="font-size:1.1em">${c}</b>`;
+    if(!document.getElementById('sO').value)document.getElementById('sO').value=c}
 }
-
-async function saveScore(){
-  const storeId=document.getElementById('scoreStore').value;
-  if(!storeId){toast('请选择店铺 / Please select a store');return;}
-  const data={
-    store_id:storeId,
-    record_date:document.getElementById('scoreDate').value||today(),
-    overall_score:parseFloat(document.getElementById('sOverall').value)||null,
-    product_satisfaction:parseFloat(document.getElementById('sProduct').value)||null,
-    fulfillment:parseFloat(document.getElementById('sFulfill').value)||null,
-    customer_service:parseFloat(document.getElementById('sService').value)||null,
-    negative_review_rate:parseFloat(document.getElementById('sNegReview').value)||null,
+async function saveSc(){
+  const sid=document.getElementById('scStore').value;if(!sid){toast('请选择店铺');return}
+  const d={store_id:sid,record_date:document.getElementById('scDate').value||today(),
+    overall_score:parseFloat(document.getElementById('sO').value)||null,
+    product_satisfaction:parseFloat(document.getElementById('sP').value)||null,
+    fulfillment:parseFloat(document.getElementById('sF').value)||null,
+    customer_service:parseFloat(document.getElementById('sS').value)||null,
+    negative_review_rate:parseFloat(document.getElementById('sNR').value)||null,
     rr_rate:parseFloat(document.getElementById('sRR').value)||null,
     fdr:parseFloat(document.getElementById('sFDR').value)||null,
     sfcr:parseFloat(document.getElementById('sSFCR').value)||null,
-    complaint_rate:parseFloat(document.getElementById('sComplaint').value)||null,
-    response_rate_12h:parseFloat(document.getElementById('sResp').value)||null,
-    recorded_by:currentUser.id
-  };
-  const res=await sb.upsert('tks_scores',data);
-  if(Array.isArray(res)&&res.length>0){
-    toast('✅ 分数已保存 / Score saved!');
-    loadScoreHistory();
-    // Clear form
-    ['sOverall','sProduct','sFulfill','sService','sNegReview','sRR','sFDR','sSFCR','sComplaint','sResp']
-      .forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  }else{toast('❌ 保存失败 / Save failed');}
+    complaint_rate:parseFloat(document.getElementById('sCR').value)||null,
+    response_rate_12h:parseFloat(document.getElementById('sRESP').value)||null,
+    recorded_by:U.id};
+  try{const r=await sb.upsert('tks_scores',d);
+    if(Array.isArray(r)&&r.length>0){toast('✅ 分数已保存!');['sO','sP','sF','sS','sNR','sRR','sFDR','sSFCR','sCR','sRESP'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});loadHistory()}
+    else{const errText=JSON.stringify(r);toast('❌ 保存失败: '+(r.message||errText));console.error('Save failed:',r)}
+  }catch(e){toast('❌ 网络错误: '+e.message)}
+}
+async function loadHistory(){
+  const sid=document.getElementById('scStore').value;const c=document.getElementById('scoreHist');
+  if(!sid){c.innerHTML='';return}
+  const sc=await sb.get('tks_scores',`store_id=eq.${sid}&order=record_date.desc&limit=30`);
+  if(!Array.isArray(sc)||!sc.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--text3)">暂无记录 No records</div>';return}
+  let h=`<div class="sec-title">历史分数 Score History — ${esc(stores.find(s=>s.id===sid)?.store_name)}</div><div class="card">
+    <table class="score-table"><thead><tr><th>日期</th><th>总分</th><th>产品</th><th>物流</th><th>客服</th><th>差评%</th><th>12H%</th></tr></thead><tbody>`;
+  for(const s of sc)h+=`<tr><td>${s.record_date}</td><td class="${sColor(s.overall_score)}"><b>${s.overall_score??'-'}</b></td>
+    <td class="${sColor(s.product_satisfaction)}">${s.product_satisfaction??'-'}</td>
+    <td class="${sColor(s.fulfillment)}">${s.fulfillment??'-'}</td>
+    <td class="${sColor(s.customer_service)}">${s.customer_service??'-'}</td>
+    <td>${s.negative_review_rate??'-'}</td><td>${s.response_rate_12h??'-'}</td></tr>`;
+  h+=`</tbody></table></div>`;c.innerHTML=h;
 }
 
-async function loadScoreHistory(){
-  const storeId=document.getElementById('scoreStore').value;
-  const container=document.getElementById('scoreHistory');
-  if(!storeId){container.innerHTML='';return;}
-  const scores=await sb.select('tks_scores',`store_id=eq.${storeId}&order=record_date.desc&limit=30`);
-  if(!Array.isArray(scores)||scores.length===0){
-    container.innerHTML='<div class="card"><p style="color:var(--text3);text-align:center;font-size:.85rem">暂无记录 / No records yet</p></div>';
-    return;
-  }
-  let html=`<div class="section-title">历史分数 / Score History</div><div class="card">
-    <div class="score-row header"><div>日期 Date</div><div class="score-val">总分</div><div class="score-val">产品</div><div class="score-val">物流</div><div class="score-val">客服</div></div>`;
-  for(const s of scores){
-    html+=`<div class="score-row">
-      <div>${s.record_date.slice(5)}</div>
-      <div class="score-val ${scoreColor(s.overall_score)}"><b>${s.overall_score??'-'}</b></div>
-      <div class="score-val ${scoreColor(s.product_satisfaction)}">${s.product_satisfaction??'-'}</div>
-      <div class="score-val ${scoreColor(s.fulfillment)}">${s.fulfillment??'-'}</div>
-      <div class="score-val ${scoreColor(s.customer_service)}">${s.customer_service??'-'}</div>
-    </div>`;
-  }
-  html+=`</div>`;
-  container.innerHTML=html;
-}
-
-// ========================================
-// ISSUES
-// ========================================
-function renderIssueForm(){
-  const el=document.getElementById('tab-issues');
-  const typeOpts=ISSUE_TYPES.map(t=>`<option value="${t.value}">${t.zh} / ${t.en}</option>`).join('');
-  const resultOpts=RESULTS.map(r=>`<option value="${r.value}">${r.zh} / ${r.en}</option>`).join('');
-  
-  el.innerHTML=`
-    <div class="card">
-      <h3>⚠️ 登记问题</h3>
-      <p class="label-en">Log Issue</p>
-    </div>
-    <div class="card">
-      <div class="form-group"><label>店铺 / Store *</label><select id="issStore">${storeOptions()}</select></div>
-      <div class="form-group"><label>日期 / Date</label><input type="date" id="issDate" value="${today()}"></div>
-      <div class="form-group"><label>订单号 / Order ID</label><input type="text" id="issOrder" placeholder="e.g. 5802731..."></div>
-      <div class="form-group"><label>问题类型 / Issue Type *</label><select id="issType">${typeOpts}</select></div>
-      <div class="form-group"><label>问题描述 / Description</label><textarea id="issDesc" placeholder="简要描述 / Brief description..."></textarea></div>
-      <div class="form-group"><label>已采取措施 / Action Taken</label><textarea id="issAction" placeholder="已做了什么 / What was done..."></textarea></div>
-      <div class="form-group"><label>处理结果 / Result</label><select id="issResult">${resultOpts}</select></div>
-      <div class="score-group">
-        <div class="form-group"><label><input type="checkbox" id="issNegReview"> 导致差评 Caused negative review</label></div>
-        <div class="form-group"><label><input type="checkbox" id="issRefund"> 导致退款 Caused refund</label></div>
+// ===== ISSUES =====
+async function rIssues(el){
+  const typeOpts=ISSUE_TYPES.map(t=>`<option value="${t.v}">${t.zh} ${t.en} ${t.fil}</option>`).join('');
+  const resOpts=RESULTS.map(r=>`<option value="${r.v}">${r.zh} ${r.en}</option>`).join('');
+  let h=`<div class="main-header"><h1>⚠️ 问题日志</h1><p>Issue Log</p></div>
+    <div class="card"><h3>➕ 登记新问题 Log New Issue</h3>
+      <div class="form-row" style="margin-top:14px">
+        <div class="fg"><label>店铺 Store *</label><select id="isStore">${storeOpts()}</select></div>
+        <div class="fg"><label>日期 Date</label><input type="date" id="isDate" value="${today()}"></div>
       </div>
-      <button class="btn btn-pri" onclick="saveIssue()" style="margin-top:8px">💾 保存问题 / Save Issue</button>
-    </div>
-    <div id="issueList"></div>`;
-  loadIssues();
+      <div class="form-row">
+        <div class="fg"><label>订单号 Order ID</label><input type="text" id="isOrder" placeholder="5802731..."></div>
+        <div class="fg"><label>问题类型 Type *</label><select id="isType">${typeOpts}</select></div>
+      </div>
+      <div class="fg"><label>问题描述 Description</label><textarea id="isDesc" placeholder="简要描述问题 Briefly describe the issue..."></textarea></div>
+      <div class="form-row">
+        <div class="fg"><label>已采取措施 Action Taken</label><textarea id="isAction" placeholder="已做了什么 What was done..."></textarea></div>
+        <div class="fg"><label>处理结果 Result</label><select id="isResult">${resOpts}</select>
+          <div style="margin-top:10px"><label style="font-size:.82rem;cursor:pointer"><input type="checkbox" id="isNeg"> 导致差评 Caused negative review</label></div>
+          <div style="margin-top:6px"><label style="font-size:.82rem;cursor:pointer"><input type="checkbox" id="isRef"> 导致退款 Caused refund</label></div>
+        </div>
+      </div>
+      <button class="btn btn-pri" onclick="saveIssue()" style="margin-top:12px;max-width:300px">💾 保存问题 Save Issue</button>
+    </div><div id="issueList"></div>`;
+  el.innerHTML=h;loadIssues();
 }
-
 async function saveIssue(){
-  const storeId=document.getElementById('issStore').value;
-  if(!storeId){toast('请选择店铺 / Please select a store');return;}
-  const data={
-    store_id:storeId,
-    issue_date:document.getElementById('issDate').value||today(),
-    order_id:document.getElementById('issOrder').value.trim(),
-    issue_type:document.getElementById('issType').value,
-    description:document.getElementById('issDesc').value.trim(),
-    action_taken:document.getElementById('issAction').value.trim(),
-    result:document.getElementById('issResult').value,
-    caused_negative_review:document.getElementById('issNegReview').checked,
-    caused_refund:document.getElementById('issRefund').checked,
-    recorded_by:currentUser.id
-  };
-  const res=await sb.insert('tks_issues',data);
-  if(Array.isArray(res)&&res.length>0){
-    toast('✅ 问题已记录 / Issue logged!');
-    ['issOrder','issDesc','issAction'].forEach(id=>document.getElementById(id).value='');
-    document.getElementById('issNegReview').checked=false;
-    document.getElementById('issRefund').checked=false;
-    loadIssues();
-  }else{toast('❌ 保存失败 / Save failed');}
+  const sid=document.getElementById('isStore').value;if(!sid){toast('请选择店铺');return}
+  const d={store_id:sid,issue_date:document.getElementById('isDate').value||today(),order_id:document.getElementById('isOrder').value.trim(),
+    issue_type:document.getElementById('isType').value,description:document.getElementById('isDesc').value.trim(),
+    action_taken:document.getElementById('isAction').value.trim(),result:document.getElementById('isResult').value,
+    caused_negative_review:document.getElementById('isNeg').checked,caused_refund:document.getElementById('isRef').checked,recorded_by:U.id};
+  try{const r=await sb.post('tks_issues',d);
+    if(Array.isArray(r)&&r.length>0){toast('✅ 问题已记录!');['isOrder','isDesc','isAction'].forEach(i=>document.getElementById(i).value='');
+      document.getElementById('isNeg').checked=false;document.getElementById('isRef').checked=false;loadIssues()}
+    else toast('❌ 保存失败')
+  }catch(e){toast('❌ 网络错误')}
 }
-
 async function loadIssues(){
-  const issues=await sb.select('tks_issues','order=created_at.desc&limit=20');
-  const container=document.getElementById('issueList');
-  if(!Array.isArray(issues)||issues.length===0){
-    container.innerHTML='<div class="card"><p style="color:var(--text3);text-align:center;font-size:.85rem">暂无记录 / No issues logged</p></div>';
-    return;
-  }
-  let html=`<div class="section-title">问题记录 / Issue Log</div><div class="card">`;
-  for(const iss of issues){
-    const store=stores.find(s=>s.id===iss.store_id);
-    html+=`<div class="issue-item">
-      <div class="issue-header"><span class="issue-store">${store?store.store_name:'—'}</span><span class="issue-date">${iss.issue_date}</span></div>
-      <div style="margin:4px 0">${getIssueTags(iss.issue_type)} ${getResultTag(iss.result)}
-        ${iss.caused_negative_review?'<span class="tag tag-damaged">差评</span>':''}
-        ${iss.caused_refund?'<span class="tag tag-wrong">退款</span>':''}</div>
-      ${iss.order_id?`<div class="issue-order">📋 ${iss.order_id}</div>`:''}
-      ${iss.description?`<div class="issue-desc">${iss.description}</div>`:''}
-      ${iss.action_taken?`<div class="issue-desc">→ ${iss.action_taken}</div>`:''}
-    </div>`;
-  }
-  html+=`</div>`;
-  container.innerHTML=html;
+  const iss=await sb.get('tks_issues','order=created_at.desc&limit=30');const c=document.getElementById('issueList');
+  if(!Array.isArray(iss)||!iss.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--text3)">暂无记录</div>';return}
+  let h=`<div class="sec-title">问题记录 Issue Records (最近30条)</div><div class="card"><table class="score-table"><thead>
+    <tr><th>日期</th><th>店铺</th><th>类型</th><th>订单号</th><th>结果</th><th>差评</th><th>退款</th></tr></thead><tbody>`;
+  for(const i of iss){const st=stores.find(s=>s.id===i.store_id);
+    h+=`<tr><td>${i.issue_date}</td><td>${esc(st?.store_name||'—')}</td><td>${issueTag(i.issue_type)}</td>
+      <td style="font-size:.75rem">${esc(i.order_id)||'—'}</td><td>${resultTag(i.result)}</td>
+      <td>${i.caused_negative_review?'⭐':'—'}</td><td>${i.caused_refund?'💰':'—'}</td></tr>`}
+  h+=`</tbody></table></div>`;c.innerHTML=h;
 }
 
-// ========================================
-// SOP
-// ========================================
-function renderSOP(){
+// ===== SOP =====
+function rSOP(el){
   const sops=[
-    {title_zh:'⭐ 差评处理',title_en:'Handling Negative Reviews (1-2 Stars)',
-     impact:'Product Satisfaction → Store Rating (45%)',
+    {zh:'⭐ 差评处理 (1-2星评价)',en:'Handling Negative Reviews (1-2 Stars)',fil:'Pag-handle ng Negative Reviews',
+     impact:'Product Satisfaction → Store Rating (45%权重)',
      steps:[
-       {zh:'在Seller Center查看差评内容和订单详情',en:'Check review content and order details in Seller Center'},
-       {zh:'24小时内通过聊天联系客户',en:'Contact customer via chat within 24 hours'},
-       {zh:'真诚道歉，提供解决方案（退款/补发/折扣）',en:'Sincerely apologize, offer solution (refund/replacement/discount)'},
-       {zh:'处理完毕后，礼貌请求客户考虑修改评价',en:'After resolution, politely ask if they would update their review'},
-       {zh:'在"问题日志"中记录此事件',en:'Log this incident in Issue Log'},
+       {zh:'在 Seller Center → Reviews 找到差评，点进订单详情查看客户买了什么',en:'Go to Seller Center → Reviews, find the negative review, click to see order details',fil:'Pumunta sa Seller Center → Reviews, hanapin ang negative review, i-click para makita ang order details'},
+       {zh:'24小时内通过 Seller Center → Messages 联系客户，不要等！',en:'Contact customer via Seller Center → Messages within 24 hours. Do NOT wait!',fil:'Kontakin ang customer sa Seller Center → Messages sa loob ng 24 oras. HUWAG maghintay!'},
+       {zh:'先真诚道歉，再提供解决方案：退款、补发、或折扣。让客户选择',en:'Sincerely apologize first, then offer solutions: refund, replacement, or discount. Let the customer choose',fil:'Mag-sorry muna ng totoo, tapos mag-offer ng solusyon: refund, replacement, o discount. Hayaang pumili ang customer'},
+       {zh:'问题解决后，礼貌地问客户是否愿意修改评价。不要强迫！',en:'After resolving the issue, politely ask if they would consider updating their review. Never force!',fil:'Pagkatapos maayos ang issue, magalang na itanong kung gusto nilang i-update ang review nila. Huwag pilitin!'},
+       {zh:'立即在本系统的"问题日志"中记录此事件，勾选"导致差评"',en:'Log this in the Issue Log immediately, check "Caused negative review"',fil:'I-log ito sa Issue Log agad, i-check ang "Caused negative review"'},
      ],
-     template:'Hi! We\'re really sorry about the issue with your order. We\'d like to make it right — would you prefer a full refund or a replacement? We\'ll also include a small gift as our apology. 🙏'},
-    {title_zh:'🔄 退货退款处理',title_en:'Return & Refund Handling',
-     impact:'Seller-Fault R&R Rate → Product Satisfaction (45%)',
+     tpl:`Hi! We're really sorry about the issue with your order. We want to make it right — would you prefer:\n1) A full refund\n2) A free replacement\n3) A discount on your next order\n\nPlease let us know and we'll process it right away! 🙏`},
+    {zh:'🔄 退货退款处理',en:'Return & Refund Handling',fil:'Pag-handle ng Return at Refund',
+     impact:'Seller-Fault R&R Rate → Product Satisfaction (45%权重)',
      steps:[
-       {zh:'判断退款原因是卖家责任还是买家责任',en:'Determine if reason is seller-fault or buyer-fault'},
-       {zh:'卖家责任（破损/发错/瑕疵）：立即批准，道歉',en:'Seller-fault (damaged/wrong/defective): approve immediately, apologize'},
-       {zh:'买家责任（不想要/选错）：礼貌解释退货政策',en:'Buyer-fault (changed mind): politely explain return policy'},
-       {zh:'模糊情况：为保护评分，建议批准退款',en:'Ambiguous cases: approve to protect rating'},
-       {zh:'记录到问题日志，标注是否产生差评',en:'Log in Issue Log, mark if it caused negative review'},
+       {zh:'在 Seller Center → After-sales 查看退款申请，先判断原因',en:'Check refund request in Seller Center → After-sales, determine the reason first',fil:'Suriin ang refund request sa Seller Center → After-sales, alamin muna ang dahilan'},
+       {zh:'卖家责任（破损/发错/瑕疵）→ 立即批准退款，发消息道歉',en:'Seller fault (damaged/wrong/defective) → Approve refund immediately, send apology',fil:'Kasalanan ng seller (sira/mali/may depekto) → Approve agad ang refund, mag-send ng sorry'},
+       {zh:'买家责任（不想要/选错）→ 礼貌解释退货政策，但如果客户态度强硬，建议批准以保护评分',en:'Buyer fault (changed mind) → Explain return policy politely, but if customer insists, recommend approving to protect rating',fil:'Kasalanan ng buyer (nag-iba isip) → Ipaliwanag ang return policy, pero kung mapilit ang customer, i-approve na lang para protektahan ang rating'},
+       {zh:'记录到问题日志：选择正确的问题类型，标注是否产生差评和退款',en:'Log in Issue Log: select correct issue type, mark if it caused negative review and refund',fil:'I-log sa Issue Log: piliin ang tamang issue type, i-mark kung nagkaroon ng negative review at refund'},
      ],
-     template:'We\'re sorry for the inconvenience. Your refund has been approved and will be processed within 3-5 business days. Thank you for your patience!'},
-    {title_zh:'📦 发错货处理',title_en:'Wrong Item Shipped',
+     tpl:`We're sorry for the inconvenience. Your refund has been approved and will be processed within 3-5 business days. Thank you for your patience! If you need anything else, please don't hesitate to reach out.`},
+    {zh:'📦 发错货处理',en:'Wrong Item Shipped',fil:'Pag-handle ng Maling Item na Na-ship',
      impact:'R&R Rate + Negative Reviews → Product Satisfaction',
      steps:[
-       {zh:'立即道歉，请客户提供收到商品的照片',en:'Apologize immediately, ask customer for photos of received item'},
-       {zh:'确认后，安排正确商品尽快发出',en:'After confirmation, arrange correct item shipment ASAP'},
-       {zh:'低价值商品让客户保留错误商品作为补偿',en:'For low-value items, let customer keep wrong item as compensation'},
-       {zh:'通知仓库检查该SKU的分拣流程',en:'Notify warehouse to check picking process for this SKU'},
-       {zh:'记录到问题日志，类型选"发错货"',en:'Log in Issue Log as "Wrong Item"'},
+       {zh:'立即道歉，请客户拍照发送收到的商品（在Seller Center Messages里沟通）',en:'Apologize immediately, ask customer to send photos of received item via Messages',fil:'Mag-sorry agad, hilingin sa customer na mag-send ng photo ng natanggap na item sa Messages'},
+       {zh:'确认发错后，立刻安排正确商品的发货',en:'After confirmation, arrange correct item shipment immediately',fil:'Pagkatapos ma-confirm, mag-ayos agad ng shipment ng tamang item'},
+       {zh:'低价值商品（<200比索）→ 让客户保留错误商品作为补偿',en:'Low-value items (<₱200) → Let customer keep wrong item as compensation',fil:'Mababang halaga na item (<₱200) → Hayaang itabi ng customer ang maling item bilang compensation'},
+       {zh:'⚠️ 立即通知仓库主管，检查该SKU的拣货流程和库位',en:'⚠️ Immediately notify warehouse supervisor, check picking process and bin location for this SKU',fil:'⚠️ Agad na i-notify ang warehouse supervisor, suriin ang picking process at bin location ng SKU na ito'},
+       {zh:'记录到问题日志，类型选"发错货"',en:'Log in Issue Log as "Wrong Item"',fil:'I-log sa Issue Log bilang "Wrong Item"'},
      ],
-     template:'We sincerely apologize — it looks like we sent the wrong item! We\'re shipping the correct one to you right away. Please keep the item you received as our apology for the mix-up.'},
-    {title_zh:'💔 破损处理',title_en:'Damaged Product/Package',
+     tpl:`We sincerely apologize — it looks like we sent the wrong item! We're shipping the correct one right away.\n\nPlease keep the item you received as our apology for the mix-up. Your correct order will arrive within [X] days.\n\nSorry again for the inconvenience! 🙏`},
+    {zh:'💔 破损处理',en:'Damaged Product/Package',fil:'Pag-handle ng Sira/Basag na Product',
      impact:'R&R Rate + Negative Reviews → Product Satisfaction',
      steps:[
-       {zh:'道歉，请客户提供破损照片',en:'Apologize, ask customer for photos of damage'},
-       {zh:'提供全额退款或补发，让客户选择',en:'Offer full refund or replacement, let customer choose'},
-       {zh:'反馈给仓库，检查包装流程和材料',en:'Report to warehouse to review packaging process and materials'},
-       {zh:'如果同一产品多次破损，考虑改进包装',en:'If same product damaged multiple times, improve packaging'},
-       {zh:'记录到问题日志，类型选"破损"',en:'Log in Issue Log as "Damaged"'},
+       {zh:'道歉，请客户在Messages中发送破损照片（包装和商品都要拍）',en:'Apologize, ask customer to send photos of damage (both packaging and product) via Messages',fil:'Mag-sorry, hilingin sa customer na mag-send ng photo ng sira (packaging at product) sa Messages'},
+       {zh:'提供两个选择：全额退款 或 免费补发。让客户决定',en:'Offer two options: full refund OR free replacement. Let customer decide',fil:'Mag-offer ng dalawang option: full refund O libreng replacement. Hayaang pumili ang customer'},
+       {zh:'⚠️ 把破损照片转发给仓库主管，要求检查包装流程和材料',en:'⚠️ Forward damage photos to warehouse supervisor, request review of packaging process',fil:'⚠️ I-forward ang damage photos sa warehouse supervisor, hilingin na suriin ang packaging process'},
+       {zh:'如果同一个产品多次出现破损，在问题日志描述中特别标注',en:'If same product is damaged multiple times, make a special note in the Issue Log description',fil:'Kung paulit-ulit na nasisira ang parehong product, gumawa ng special note sa Issue Log description'},
+       {zh:'记录到问题日志，类型选"破损"',en:'Log in Issue Log as "Damaged"',fil:'I-log sa Issue Log bilang "Damaged"'},
      ],
-     template:'We\'re so sorry your order arrived damaged! Would you prefer a full refund or would you like us to send a replacement? We\'ll also look into improving our packaging.'},
-    {title_zh:'💬 消息回复指南',title_en:'Message Response Guide (12H Rule)',
-     impact:'12-Hour Response Rate → Customer Service (15%)',
-     steps:[
-       {zh:'⚡ 核心规则：所有消息必须在12小时内回复',en:'⚡ CORE RULE: ALL messages must be replied within 12 hours'},
-       {zh:'即使不知道答案，也要先回复表示收到',en:'Even if you don\'t know the answer, reply to acknowledge receipt'},
-       {zh:'每天至少检查3次消息（早/中/晚）',en:'Check messages at least 3 times daily (morning/noon/evening)'},
-       {zh:'使用快捷回复模板提高效率',en:'Use quick reply templates to improve efficiency'},
-       {zh:'下班前确保零未读消息',en:'Ensure ZERO unread messages before end of day'},
-     ],
-     template:'Thank you for reaching out! We\'ve received your message and will get back to you shortly. 😊'},
-    {title_zh:'❌ 缺件处理',title_en:'Missing Item in Order',
+     tpl:`We're so sorry your order arrived damaged! We can see how frustrating that must be.\n\nWould you prefer:\n1) A full refund\n2) A free replacement shipped right away\n\nWe'll also improve our packaging to prevent this from happening again. 🙏`},
+    {zh:'❌ 缺件处理',en:'Missing Item in Order',fil:'Pag-handle ng Kulang na Item sa Order',
      impact:'R&R Rate + Negative Reviews → Product Satisfaction',
      steps:[
-       {zh:'道歉，确认订单详情和缺少的商品',en:'Apologize, confirm order details and missing item'},
-       {zh:'尽快安排补发缺少的商品',en:'Arrange shipment of missing item ASAP'},
-       {zh:'提供小额优惠券作为额外补偿',en:'Offer small discount coupon as extra compensation'},
-       {zh:'通知仓库检查该订单的打包流程',en:'Notify warehouse to check packing process for this order'},
-       {zh:'记录到问题日志，类型选"缺件"',en:'Log in Issue Log as "Missing Item"'},
+       {zh:'道歉，在Messages中确认订单详情和具体缺少哪个商品',en:'Apologize, confirm order details and which specific item is missing via Messages',fil:'Mag-sorry, i-confirm ang order details at kung aling item ang kulang sa Messages'},
+       {zh:'核对仓库出库记录，确认是否确实漏发',en:'Check warehouse outbound records to confirm if item was indeed not shipped',fil:'Suriin ang warehouse outbound records para i-confirm kung talagang hindi na-ship ang item'},
+       {zh:'确认后立即安排补发，提供快递单号给客户',en:'After confirmation, arrange shipment immediately, provide tracking number to customer',fil:'Pagkatapos ma-confirm, mag-ayos agad ng shipment, ibigay ang tracking number sa customer'},
+       {zh:'⚠️ 通知仓库检查该订单的打包流程，是否需要改进复核机制',en:'⚠️ Notify warehouse to check packing process for this order, consider improving QC',fil:'⚠️ I-notify ang warehouse na suriin ang packing process, isaalang-alang ang pagpapabuti ng QC'},
+       {zh:'记录到问题日志，类型选"缺件"',en:'Log in Issue Log as "Missing Item"',fil:'I-log sa Issue Log bilang "Missing Item"'},
      ],
-     template:'We apologize for the missing item in your order! We\'re sending it out to you right away. As an apology, here\'s a discount code for your next purchase: [CODE]'},
+     tpl:`We apologize for the missing item in your order! We've checked and confirmed the issue.\n\nWe're sending the missing item right away — here's the tracking number: [NUMBER]\n\nSorry for the inconvenience! 🙏`},
+    {zh:'💬 消息回复指南（12小时规则）',en:'Message Response Guide (12-Hour Rule)',fil:'Gabay sa Pagsagot ng Mensahe (12-Hour Rule)',
+     impact:'12-Hour Response Rate → Customer Service (15%权重)',
+     steps:[
+       {zh:'⚡ 核心规则：所有消息必须在12小时内回复！这直接影响店铺评分',en:'⚡ CORE RULE: ALL messages must be replied within 12 hours! This directly affects store rating',fil:'⚡ PANGUNAHING RULE: LAHAT ng mensahe dapat sagutin sa loob ng 12 oras! Direkta itong nakakaapekto sa store rating'},
+       {zh:'即使不知道答案，也要先回复"已收到，正在处理"，不能已读不回',en:'Even if you don\'t know the answer, reply "Received, working on it" first. NEVER leave on read',fil:'Kahit hindi mo alam ang sagot, mag-reply muna ng "Natanggap na, inaayos na" — HUWAG i-seen lang'},
+       {zh:'每天固定3个时间检查消息：9:00 / 13:00 / 16:30',en:'Check messages at 3 fixed times daily: 9:00 / 13:00 / 16:30',fil:'Mag-check ng mensahe sa 3 fixed na oras araw-araw: 9:00 / 13:00 / 16:30'},
+       {zh:'下班前最后检查：确保每个店铺零未读消息！这是每天最重要的收尾工作',en:'Final check before leaving: ensure ZERO unread messages in every store! This is the most important end-of-day task',fil:'Huling check bago umuwi: siguraduhing ZERO unread messages sa bawat store! Ito ang pinakaimportanteng gawain bago matapos ang araw'},
+       {zh:'常见问题可以用快捷回复模板，不需要每次重新打字',en:'Use quick reply templates for common questions — no need to type from scratch every time',fil:'Gamitin ang quick reply templates para sa mga common na tanong — hindi kailangang mag-type mula sa simula'},
+     ],
+     tpl:`Common replies:\n\n📦 Shipping inquiry:\n"Your order has been shipped! You can track it here: [tracking link]. It usually takes 3-5 business days to arrive."\n\n⏳ Processing:\n"Thank you for your message! We're looking into this and will get back to you shortly."\n\n✅ Confirmation:\n"Got it! We've noted your request and will process it right away."`},
+    {zh:'🚫 客户要求取消订单',en:'Customer Requests Order Cancellation',fil:'Customer na Gustong I-cancel ang Order',
+     impact:'Seller-Fault Cancellation Rate → Fulfillment (40%权重)',
+     steps:[
+       {zh:'如果订单还没发货：礼貌询问取消原因，尝试挽留（提供折扣等）',en:'If order not yet shipped: politely ask reason, try to retain (offer discount etc)',fil:'Kung hindi pa na-ship ang order: magalang na itanong ang dahilan, subukang i-retain (mag-offer ng discount)'},
+       {zh:'客户坚持取消且未发货：让客户自己在APP取消（不影响卖家取消率）',en:'Customer insists and not shipped: let customer cancel via APP (doesn\'t affect seller cancellation rate)',fil:'Kung mapilit ang customer at hindi pa na-ship: hayaang mag-cancel ang customer sa APP (hindi nakakaapekto sa seller cancellation rate)'},
+       {zh:'⚠️ 绝对不要在Seller Center手动取消！手动取消算卖家责任取消率',en:'⚠️ NEVER manually cancel in Seller Center! Manual cancellation counts as seller-fault',fil:'⚠️ HUWAG mag-cancel manually sa Seller Center! Ang manual cancellation ay counted bilang seller-fault'},
+       {zh:'如果已经发货：告诉客户商品已发出，可以收到后申请退货',en:'If already shipped: inform customer item is on the way, they can apply for return after receiving',fil:'Kung na-ship na: sabihin sa customer na nasa daan na ang item, pwede mag-apply ng return pagkatapos matanggap'},
+     ],
+     tpl:`Hi! We see you'd like to cancel your order.\n\nIf you haven't received it yet, you can cancel directly from your TikTok Shop app:\nMe → Orders → Select the order → Cancel\n\nIf you've already received it, you can apply for a return/refund from the same page.\n\nLet us know if you need any help! 😊`},
   ];
-  
-  let html=`<div class="card"><h3>📖 SOP 标准操作流程</h3><p class="label-en">Standard Operating Procedures</p></div>`;
-  for(const sop of sops){
-    html+=`<div class="sop-item" onclick="this.classList.toggle('open')">
-      <div class="sop-header"><span>${sop.title_zh}<br><span style="font-weight:400;font-size:.75rem;color:var(--text2)">${sop.title_en}</span></span><span class="arrow">▸</span></div>
+
+  let h=`<div class="main-header"><h1>📖 SOP 标准操作流程</h1><p>Standard Operating Procedures · Mga Karaniwang Pamamaraan</p></div>
+    <div class="card" style="background:var(--warn-bg);border-color:#fde68a"><p style="font-size:.85rem">
+      <b>⚡ 重要提醒 Important Reminder:</b> 每个SOP都标注了影响哪个指标，按指标权重排序。产品满意度(45%)最重要！<br>
+      <span style="color:var(--text2)">Each SOP shows which metric it affects, sorted by weight. Product Satisfaction (45%) is most important!<br>
+      Bawat SOP ay nagpapakita kung aling metric ang apektado. Ang Product Satisfaction (45%) ang pinaka-importante!</span></p></div>`;
+  for(const s of sops){
+    h+=`<div class="sop-item" onclick="event.currentTarget.classList.toggle('open')">
+      <div class="sop-head"><span>${s.zh}<br><span style="font-weight:400;font-size:.75rem;color:var(--text2)">${s.en}<br>${s.fil}</span></span><span class="arrow">▸</span></div>
       <div class="sop-body" onclick="event.stopPropagation()">
-        <div class="sop-impact">📈 影响指标 / Impacts: ${sop.impact}</div>
-        <div style="margin-bottom:10px"><b>步骤 / Steps:</b></div>
-        ${sop.steps.map((s,i)=>`<div class="sop-step"><b>${i+1}.</b> ${s.zh}<br><span style="color:var(--text2)">${s.en}</span></div>`).join('')}
-        <div style="margin-top:12px"><b>回复模板 / Reply Template:</b></div>
-        <div class="sop-template">${sop.template}</div>
-      </div>
-    </div>`;
-  }
-  document.getElementById('tab-sop').innerHTML=html;
+        <div class="sop-impact">📈 ${s.impact}</div>
+        <div style="margin-bottom:12px"><b>操作步骤 Steps / Mga Hakbang:</b></div>
+        ${s.steps.map((st,i)=>`<div class="sop-step"><b>${i+1}.</b> <span class="s-zh">${st.zh}</span><br><span class="s-en">${st.en}</span><br><span class="s-fil">${st.fil}</span></div>`).join('')}
+        <div style="margin-top:16px"><b>📋 回复模板 Reply Template:</b></div>
+        <div class="sop-tpl">${esc(s.tpl)}</div>
+      </div></div>`}
+  el.innerHTML=h;
 }
 
-// ========================================
-// STORE MANAGEMENT (Admin)
-// ========================================
-function renderStores(){
-  const el=document.getElementById('tab-stores');
-  let html=`
-    <div class="card">
-      <h3>🏪 店铺管理</h3>
-      <p class="label-en">Store Management</p>
+// ===== STORES =====
+async function rStores(el){
+  await loadData();
+  let h=`<div class="main-header"><h1>🏪 店铺管理</h1><p>Store Management</p></div>
+    <div class="card"><h3>➕ 添加店铺 Add Store</h3>
+      <div class="form-row" style="margin-top:14px">
+        <div class="fg"><label>店铺名称 Store Name *</label><input type="text" id="newSName" placeholder="e.g. My TikTok Shop"></div>
+        <div class="fg"><label>类目 Category</label><input type="text" id="newSCat" placeholder="e.g. Textiles"></div>
+      </div>
+      <div class="form-row">
+        <div class="fg"><label>负责人 Assigned To</label><select id="newSAssign">${staffOpts()}</select></div>
+        <div class="fg" style="display:flex;align-items:flex-end"><button class="btn btn-pri" onclick="addStore()">➕ 添加 Add</button></div>
+      </div>
     </div>
-    <div class="card">
-      <div class="form-group"><label>店铺名称 / Store Name</label><input type="text" id="newStoreName" placeholder="e.g. My TikTok Shop"></div>
-      <div class="form-group"><label>类目 / Category (可选)</label><input type="text" id="newStoreCat" placeholder="e.g. Textiles & Soft Furnishings"></div>
-      <button class="btn btn-pri" onclick="addStore()">➕ 添加店铺 / Add Store</button>
-    </div>
-    <div class="section-title">店铺列表 / Store List (${stores.length})</div>
-    <div class="card">`;
-  if(stores.length===0){
-    html+=`<p style="color:var(--text3);text-align:center;font-size:.85rem">暂无店铺 / No stores yet</p>`;
-  }
+    <div class="sec-title">店铺列表 Store List (${stores.length})</div><div class="card">
+    <table class="score-table"><thead><tr><th>店铺名称</th><th>类目</th><th>负责人</th><th>操作</th></tr></thead><tbody>`;
   for(const s of stores){
-    html+=`<div class="list-item">
-      <div><div class="name">${s.store_name}</div><div class="meta">${s.category||'—'} | ${s.platform}</div></div>
-      <div class="actions">
-        <button class="btn btn-ghost btn-sm" onclick="editStore('${s.id}','${s.store_name.replace(/'/g,"\\'")}','${(s.category||'').replace(/'/g,"\\'")}')">✏️</button>
-        <button class="btn btn-ghost btn-sm" onclick="deleteStore('${s.id}','${s.store_name.replace(/'/g,"\\'")}')">🗑️</button>
-      </div>
-    </div>`;
-  }
-  html+=`</div>`;
-  el.innerHTML=html;
+    const assignee=staffList.find(u=>u.id===s.assigned_to);
+    h+=`<tr><td><b>${esc(s.store_name)}</b></td><td>${esc(s.category||'—')}</td>
+      <td><select onchange="assignStore('${s.id}',this.value)" style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;font-size:.8rem">${staffOpts(s.assigned_to||'')}</select></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="delStore('${s.id}','${esc(s.store_name)}')">🗑️</button></td></tr>`}
+  h+=`</tbody></table></div>`;
+  el.innerHTML=h;
 }
-
 async function addStore(){
-  const name=document.getElementById('newStoreName').value.trim();
-  if(!name){toast('请输入店铺名称 / Please enter store name');return;}
-  const cat=document.getElementById('newStoreCat').value.trim();
-  await sb.insert('tks_stores',{store_name:name,category:cat});
-  await loadStores();
-  renderStores();
-  toast('✅ 店铺已添加 / Store added!');
-}
+  const n=document.getElementById('newSName').value.trim();if(!n){toast('请输入店铺名称');return}
+  const c=document.getElementById('newSCat').value.trim(),a=document.getElementById('newSAssign').value||null;
+  await sb.post('tks_stores',{store_name:n,category:c,assigned_to:a});await loadData();rStores(document.getElementById('mainBody'));toast('✅ 已添加')}
+async function assignStore(id,uid){await sb.patch('tks_stores',{id},{assigned_to:uid||null});await loadData();toast('✅ 已更新负责人')}
+async function delStore(id,name){if(!confirm(`删除 "${name}"？\n⚠️ 所有相关分数和问题记录也会删除！`))return;
+  await sb.del('tks_stores',{id});await loadData();rStores(document.getElementById('mainBody'));toast('🗑️ 已删除')}
 
-function editStore(id,name,cat){
-  const newName=prompt('店铺名称 / Store name:',name);
-  if(!newName||newName===name){
-    const newCat=prompt('类目 / Category:',cat);
-    if(newCat!==null&&newCat!==cat){
-      sb.update('tks_stores',{id},{category:newCat}).then(()=>{loadStores().then(()=>renderStores());});
-    }
-    return;
-  }
-  const newCat=prompt('类目 / Category:',cat);
-  sb.update('tks_stores',{id},{store_name:newName,category:newCat||''}).then(()=>{
-    loadStores().then(()=>renderStores());
-    toast('✅ 已更新 / Updated!');
-  });
-}
-
-async function deleteStore(id,name){
-  if(!confirm(`确定删除 "${name}"？\nDelete "${name}"?\n\n⚠️ 该店铺的所有分数和问题记录也会被删除！\nAll score and issue records will be deleted!`))return;
-  await sb.del('tks_stores',{id});
-  await loadStores();
-  renderStores();
-  toast('🗑️ 已删除 / Deleted!');
-}
-
-// ========================================
-// USER MANAGEMENT (Admin)
-// ========================================
-async function renderUsers(){
-  const el=document.getElementById('tab-users');
-  const res=await sb.rpc('tks_list_users',{p_admin_id:currentUser.id});
-  const users=res.success?res.users:[];
-  
-  let html=`
-    <div class="card">
-      <h3>👥 用户管理</h3>
-      <p class="label-en">User Management</p>
-    </div>
-    <div class="card">
-      <div class="section-title">创建新用户 / Create New User</div>
-      <div class="form-group"><label>用户名 / Username</label><input type="text" id="newUserName" placeholder="e.g. maria" autocapitalize="off"></div>
-      <div class="form-group"><label>显示名 / Display Name</label><input type="text" id="newUserDisplay" placeholder="e.g. Maria Santos"></div>
-      <div class="form-group"><label>密码 / Password</label><input type="text" id="newUserPass" placeholder="至少6位 / Min 6 chars"></div>
-      <div class="form-group"><label>角色 / Role</label>
-        <select id="newUserRole"><option value="staff">Staff 员工</option><option value="admin">Admin 管理员</option></select>
+// ===== USERS =====
+async function rUsers(el){
+  const r=await sb.rpc('tks_list_users',{p_admin_id:U.id});const users=r.success?r.users:[];
+  let h=`<div class="main-header"><h1>👥 用户管理</h1><p>User Management</p></div>
+    <div class="card"><h3>➕ 创建新用户 Create User</h3>
+      <div class="form-row" style="margin-top:14px">
+        <div class="fg"><label>用户名 Username *</label><input type="text" id="nuName" autocapitalize="off" placeholder="e.g. maria"></div>
+        <div class="fg"><label>显示名 Display Name *</label><input type="text" id="nuDisplay" placeholder="e.g. Maria Santos"></div>
       </div>
-      <button class="btn btn-pri" onclick="createUser()">➕ 创建用户 / Create User</button>
+      <div class="form-row">
+        <div class="fg"><label>密码 Password *</label><input type="text" id="nuPass" placeholder="至少6位 Min 6 chars"></div>
+        <div class="fg"><label>角色 Role</label><select id="nuRole"><option value="staff">Staff 员工</option><option value="admin">Admin 管理员</option></select></div>
+      </div>
+      <button class="btn btn-pri" onclick="createUser()" style="max-width:300px">➕ 创建 Create</button>
     </div>
-    <div class="section-title">用户列表 / User List</div>
-    <div class="card">`;
+    <div class="sec-title">用户列表 User List</div><div class="card">
+    <table class="score-table"><thead><tr><th>用户</th><th>角色</th><th>负责店铺</th><th>状态</th><th>操作</th></tr></thead><tbody>`;
   for(const u of users){
-    const isSelf=u.id===currentUser.id;
-    html+=`<div class="list-item">
-      <div>
-        <div class="name">${u.display_name} ${isSelf?'(你/You)':''}</div>
-        <div class="meta">@${u.username} | <span class="badge ${u.role==='admin'?'':'badge-staff'}">${u.role}</span>
-          ${!u.is_active?' | <span style="color:var(--bad)">已禁用 Disabled</span>':''}</div>
-      </div>
-      <div class="actions">
-        ${!isSelf?`<button class="btn btn-ghost btn-sm" onclick="resetUserPw('${u.id}','${u.display_name}')">🔑</button>
-        <button class="btn btn-ghost btn-sm" onclick="toggleUser('${u.id}',${u.is_active},'${u.display_name}')">${u.is_active?'🚫':'✅'}</button>`:''}
-      </div>
-    </div>`;
-  }
-  html+=`</div>
-    <div class="section-title">修改自己的密码 / Change Your Password</div>
-    <div class="card">
-      <div class="form-group"><label>当前密码 / Current Password</label><input type="password" id="chgOldPw"></div>
-      <div class="form-group"><label>新密码 / New Password</label><input type="password" id="chgNewPw"></div>
-      <button class="btn btn-ghost" onclick="changeMyPw()">🔑 修改密码 / Change Password</button>
-    </div>`;
-  el.innerHTML=html;
+    const self=u.id===U.id;const uStores=stores.filter(s=>s.assigned_to===u.id);
+    h+=`<tr><td><b>${esc(u.display_name)}</b>${self?' (You)':''}<br><span style="font-size:.72rem;color:var(--text3)">@${esc(u.username)}</span></td>
+      <td><span class="badge ${u.role==='admin'?'':'badge-staff'}">${u.role}</span></td>
+      <td style="font-size:.8rem">${uStores.length?uStores.map(s=>esc(s.store_name)).join(', '):'<span style="color:var(--text3)">—</span>'}</td>
+      <td>${u.is_active?'<span style="color:var(--ok)">✅</span>':'<span style="color:var(--bad)">🚫</span>'}</td>
+      <td>${self?'—':`<button class="btn btn-ghost btn-sm" onclick="resetPw('${u.id}','${esc(u.display_name)}')">🔑</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleUsr('${u.id}',${u.is_active},'${esc(u.display_name)}')">${u.is_active?'🚫':'✅'}</button>`}</td></tr>`}
+  h+=`</tbody></table></div>
+    <div class="sec-title">修改自己的密码 Change Your Password</div><div class="card">
+      <div class="form-row"><div class="fg"><label>当前密码 Current</label><input type="password" id="cpOld"></div>
+        <div class="fg"><label>新密码 New</label><input type="password" id="cpNew"></div></div>
+      <button class="btn btn-ghost" onclick="chgPw()" style="max-width:300px">🔑 修改密码 Change</button></div>`;
+  el.innerHTML=h;
 }
-
 async function createUser(){
-  const u=document.getElementById('newUserName').value.trim();
-  const d=document.getElementById('newUserDisplay').value.trim();
-  const p=document.getElementById('newUserPass').value;
-  const r=document.getElementById('newUserRole').value;
-  if(!u||!d||!p){toast('请填写所有字段 / Please fill all fields');return;}
-  if(p.length<6){toast('密码至少6位 / Password min 6 chars');return;}
-  const res=await sb.rpc('tks_create_user',{p_admin_id:currentUser.id,p_username:u,p_password:p,p_display_name:d,p_role:r});
-  if(res.success){
-    toast('✅ 用户已创建 / User created!');
-    ['newUserName','newUserDisplay','newUserPass'].forEach(id=>document.getElementById(id).value='');
-    renderUsers();
-  }else{toast('❌ '+res.message);}
-}
-
-async function resetUserPw(userId,name){
-  const newPw=prompt(`为 ${name} 设置新密码 / Set new password for ${name}:`);
-  if(!newPw)return;
-  if(newPw.length<6){toast('密码至少6位 / Min 6 chars');return;}
-  const res=await sb.rpc('tks_update_user',{p_admin_id:currentUser.id,p_user_id:userId,p_password:newPw});
-  if(res.success)toast('✅ 密码已重置 / Password reset!');
+  const u=document.getElementById('nuName').value.trim(),d=document.getElementById('nuDisplay').value.trim(),
+    p=document.getElementById('nuPass').value,r=document.getElementById('nuRole').value;
+  if(!u||!d||!p){toast('请填写所有字段');return}if(p.length<6){toast('密码至少6位');return}
+  const res=await sb.rpc('tks_create_user',{p_admin_id:U.id,p_username:u,p_password:p,p_display_name:d,p_role:r});
+  if(res.success){toast('✅ 用户已创建!');['nuName','nuDisplay','nuPass'].forEach(i=>document.getElementById(i).value='');await loadData();rUsers(document.getElementById('mainBody'))}
   else toast('❌ '+res.message);
 }
+async function resetPw(id,name){const p=prompt(`为 ${name} 设置新密码:`);if(!p)return;if(p.length<6){toast('密码至少6位');return}
+  const r=await sb.rpc('tks_update_user',{p_admin_id:U.id,p_user_id:id,p_password:p});r.success?toast('✅ 密码已重置'):toast('❌ '+r.message)}
+async function toggleUsr(id,active,name){if(!confirm(`${active?'禁用':'启用'} ${name}?`))return;
+  const r=await sb.rpc('tks_update_user',{p_admin_id:U.id,p_user_id:id,p_is_active:!active});if(r.success){toast('✅ 已更新');await loadData();rUsers(document.getElementById('mainBody'))}}
+async function chgPw(){const o=document.getElementById('cpOld').value,n=document.getElementById('cpNew').value;
+  if(!o||!n){toast('请填写密码');return}if(n.length<6){toast('新密码至少6位');return}
+  const r=await sb.rpc('tks_change_password',{p_user_id:U.id,p_old_password:o,p_new_password:n});
+  if(r.success){toast('✅ 密码已修改');document.getElementById('cpOld').value='';document.getElementById('cpNew').value=''}else toast('❌ '+r.message)}
 
-async function toggleUser(userId,isActive,name){
-  const action=isActive?'禁用 disable':'启用 enable';
-  if(!confirm(`${action} ${name}?`))return;
-  const res=await sb.rpc('tks_update_user',{p_admin_id:currentUser.id,p_user_id:userId,p_is_active:!isActive});
-  if(res.success){toast('✅ 已更新 / Updated!');renderUsers();}
-}
+// ===== KEYBOARD =====
+document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus()});
 
-async function changeMyPw(){
-  const old=document.getElementById('chgOldPw').value;
-  const newPw=document.getElementById('chgNewPw').value;
-  if(!old||!newPw){toast('请填写密码 / Please enter passwords');return;}
-  if(newPw.length<6){toast('新密码至少6位 / New password min 6 chars');return;}
-  const res=await sb.rpc('tks_change_password',{p_user_id:currentUser.id,p_old_password:old,p_new_password:newPw});
-  if(res.success){
-    toast('✅ 密码已修改 / Password changed!');
-    document.getElementById('chgOldPw').value='';
-    document.getElementById('chgNewPw').value='';
-  }else{toast('❌ '+res.message);}
-}
-
-// ========================================
-// ENTER KEY LOGIN
-// ========================================
-document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus();});
-
-// ========================================
-// INIT
-// ========================================
-tryAutoLogin();
+// ===== START =====
+autoLogin();
 </script>
 </body>
 </html>
