@@ -167,6 +167,36 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .modal-todo-item .mt-title{font-size:.88rem;font-weight:600}
 .modal-todo-item .mt-meta{font-size:.72rem;color:var(--text3);margin-top:3px}
 .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+/* Chat */
+.chat-wrap{display:flex;height:calc(100vh - 56px);margin:-28px -36px;overflow:hidden}
+.chat-list{width:250px;border-right:1px solid var(--border);background:#fff;display:flex;flex-direction:column;flex-shrink:0}
+.chat-list-header{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:.92rem}
+.chat-list-body{flex:1;overflow-y:auto}
+.chat-conv{padding:10px 16px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;transition:background .1s}
+.chat-conv:hover{background:#f8fafc}
+.chat-conv.active{background:var(--pri-l)}
+.chat-conv-info{flex:1;min-width:0}
+.chat-conv-name{font-size:.82rem;font-weight:600}
+.chat-conv-preview{font-size:.7rem;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-unread{background:var(--bad);color:#fff;border-radius:10px;font-size:.6rem;font-weight:700;padding:2px 7px;min-width:18px;text-align:center;flex-shrink:0;margin-left:8px}
+.chat-main{flex:1;display:flex;flex-direction:column;background:var(--bg)}
+.chat-main-header{padding:12px 20px;background:#fff;border-bottom:1px solid var(--border);font-weight:600;font-size:.88rem;flex-shrink:0}
+.chat-messages{flex:1;overflow-y:auto;padding:16px 20px}
+.chat-msg{margin-bottom:14px;max-width:70%;display:flex;flex-direction:column}
+.chat-msg.mine{margin-left:auto;align-items:flex-end}
+.chat-msg .cm-name{font-size:.68rem;color:var(--text2);margin-bottom:3px;font-weight:600}
+.chat-msg .cm-bubble{padding:10px 14px;border-radius:14px;font-size:.85rem;line-height:1.5;word-wrap:break-word}
+.chat-msg.other .cm-bubble{background:#fff;border:1px solid var(--border);border-top-left-radius:4px}
+.chat-msg.mine .cm-bubble{background:var(--pri);color:#fff;border-bottom-right-radius:4px}
+.chat-msg .cm-time{font-size:.6rem;color:var(--text3);margin-top:3px}
+.chat-input{padding:12px 16px;background:#fff;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+.chat-input input{flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;outline:none}
+.chat-input input:focus{border-color:var(--pri)}
+.chat-input button{padding:10px 20px;background:var(--pri);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;white-space:nowrap}
+.chat-input button:hover{background:var(--pri-d)}
+.chat-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:.88rem;text-align:center}
+.chat-sec{padding:8px 16px;font-size:.66rem;font-weight:700;color:var(--text3);text-transform:uppercase;background:#fafbfc;border-bottom:1px solid #f1f5f9}
+.chat-date-sep{text-align:center;margin:16px 0 8px;font-size:.68rem;color:var(--text3)}
 @media(max-width:900px){
 .sidebar{width:200px}.main{padding:20px}
 .stats-row,.quick-actions{grid-template-columns:repeat(2,1fr)}
@@ -207,7 +237,7 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 <script>
 const SB_URL='https://glohjxbpgqqzspytnbfm.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsb2hqeGJwZ3FxenNweXRuYmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwODkyODEsImV4cCI6MjA5MDY2NTI4MX0.DF10KD-ePvAoiZoEGpvai5w1HVQeUPYQIHuLa3YXCps';
-let U=null,stores=[],staffList=[],currentTab='home',todoReminderTimer=null;
+let U=null,stores=[],staffList=[],currentTab='home',todoReminderTimer=null,chatChannel='general',chatPollTimer=null;
 
 const sb={
   h:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
@@ -281,6 +311,7 @@ async function doLogin(){
 function doLogout(){
   U=null;sessionStorage.removeItem('tks_u');
   if(todoReminderTimer)clearInterval(todoReminderTimer);
+  stopChatPoll();
   document.getElementById('app').style.display='none';
   document.getElementById('loginPage').style.display='flex';
   document.getElementById('loginPass').value='';
@@ -296,6 +327,8 @@ async function initApp(){
   await loadData();buildNav();go('home');
   checkTodoReminder();
   todoReminderTimer=setInterval(checkTodoReminder,3*60*60*1000);
+  updateChatBadge();
+  setInterval(updateChatBadge,30000);
 }
 async function loadData(){
   stores=await sb.get('tks_stores','is_active=eq.true&order=store_name');
@@ -340,6 +373,7 @@ function buildNav(){
   const a=U.role==='admin';
   const tabs=[
     {id:'home',icon:'🏠',label:'首页 Home'},
+    {id:'chat',icon:'💬',label:'聊天 Chat'},
     {id:'todos',icon:'📋',label:'待办 Todos'},
     {id:'tasks',icon:'✅',label:'任务 Tasks'},
     {id:'score',icon:'📊',label:'分数 Scores'},
@@ -362,9 +396,10 @@ async function updateTodoBadge(){
   }catch(e){}
 }
 function go(id){
+  if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers};
+  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers};
   if(render[id])render[id](m);
 }
 
@@ -649,7 +684,7 @@ async function loadHistory(){
   const sc=await sb.get('tks_scores','store_id=eq.'+sid+'&order=record_date.desc&limit=30');
   if(!Array.isArray(sc)||!sc.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--text3)">暂无记录 No records yet</div>';return}
   const sn=stores.find(s=>s.id===sid);
-  let h='<div class="sec-title">📈 历史分数 Score History — '+(sn?esc(sn.store_name):'')+'</div><div class="card"><table class="score-table"><thead><tr><th>日期 Date</th><th>总分 Overall</th><th>产品 Product</th><th>物流 Fulfill</th><th>客服 Service</th><th>差评% NR</th><th>12H%</th></tr></thead><tbody>';
+  let h='<div class="sec-title">📈 历史分数 Score History — '+(sn?esc(sn.store_name):'')+'</div><div class="card"><table class="score-table"><thead><tr><th>日期</th><th>总分</th><th>产品</th><th>物流</th><th>客服</th><th>差评%</th><th>12H%</th></tr></thead><tbody>';
   for(let i=0;i<sc.length;i++){const s=sc[i];const p=sc[i+1]||null;
     h+=`<tr><td>${s.record_date}</td>
       <td class="${sColor(s.overall_score)}"><b>${s.overall_score??'-'}</b>${p?trend(s.overall_score,p.overall_score):''}</td>
@@ -773,6 +808,209 @@ function rSOP(el){
         <div class="sop-tpl">${esc(s.tpl)}</div>
       </div></div>`}
   el.innerHTML=h;
+}
+
+/* ---- CHAT ---- */
+function dmKey(a,b){return 'dm_'+[a,b].sort().join('_')}
+function channelName(key){
+  if(key==='general')return '📢 总群 General';
+  if(key.startsWith('dm_')){const ids=key.replace('dm_','').split('_');const other=ids.find(i=>i!==U.id);const s=staffList.find(x=>x.id===other);return s?s.display_name:other}
+  return key;
+}
+function formatTime(ts){if(!ts)return '';const d=new Date(ts);return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+function formatDate(ts){if(!ts)return '';const d=new Date(ts);const t=new Date();
+  if(d.toDateString()===t.toDateString())return '今天 Today';
+  const y=new Date(t);y.setDate(y.getDate()-1);if(d.toDateString()===y.toDateString())return '昨天 Yesterday';
+  return d.toLocaleDateString()}
+
+async function rChat(el){
+  // Get all DM channels for this user (or all for admin)
+  const isAdmin=U.role==='admin';
+  let allMsgs=[];
+  try{allMsgs=await sb.get('tks_messages','order=created_at.desc&limit=500');if(!Array.isArray(allMsgs))allMsgs=[];}catch(e){allMsgs=[];}
+  // Get read status
+  let readStatus=[];
+  try{readStatus=await sb.get('tks_read_status','user_id=eq.'+U.id);if(!Array.isArray(readStatus))readStatus=[];}catch(e){}
+
+  // Build channel list
+  const channels=new Map();
+  channels.set('general',{key:'general',name:'📢 总群 General',lastMsg:null,unread:0,type:'group'});
+  // DM channels involving current user
+  const myDmKeys=new Set();
+  allMsgs.forEach(m=>{
+    if(!channels.has(m.channel_key)){
+      if(m.channel_key.startsWith('dm_')){
+        const ids=m.channel_key.replace('dm_','').split('_');
+        const isMine=ids.includes(U.id);
+        if(isMine||isAdmin){
+          const otherIds=ids.filter(i=>i!==U.id);
+          const otherName=otherIds.map(i=>{const s=staffList.find(x=>x.id===i);return s?s.display_name:i}).join(' & ');
+          channels.set(m.channel_key,{key:m.channel_key,name:(isMine?'👤 ':'👥 ')+otherName,lastMsg:null,unread:0,type:isMine?'dm':'staff_dm'});
+          if(isMine)myDmKeys.add(m.channel_key);
+        }
+      }
+    }
+    const ch=channels.get(m.channel_key);
+    if(ch&&!ch.lastMsg)ch.lastMsg=m;
+  });
+  // Calc unread
+  channels.forEach((ch,key)=>{
+    const rs=readStatus.find(r=>r.channel_key===key);
+    const lastRead=rs?new Date(rs.last_read_at):new Date(0);
+    ch.unread=allMsgs.filter(m=>m.channel_key===key&&new Date(m.created_at)>lastRead&&m.sender_id!==U.id).length;
+  });
+  // Add DM options for staff not yet chatted with
+  staffList.filter(s=>s.is_active&&s.id!==U.id).forEach(s=>{
+    const dk=dmKey(U.id,s.id);
+    if(!channels.has(dk))channels.set(dk,{key:dk,name:'👤 '+s.display_name,lastMsg:null,unread:0,type:'dm'});
+  });
+
+  // Sort: general first, then DMs by last message
+  const sorted=[...channels.values()];
+  const general=sorted.find(c=>c.key==='general');
+  const myDms=sorted.filter(c=>c.type==='dm').sort((a,b)=>(b.lastMsg?.created_at||'')>(a.lastMsg?.created_at||'')?1:-1);
+  const staffDms=sorted.filter(c=>c.type==='staff_dm').sort((a,b)=>(b.lastMsg?.created_at||'')>(a.lastMsg?.created_at||'')?1:-1);
+
+  // Validate chatChannel
+  if(!channels.has(chatChannel))chatChannel='general';
+
+  let convHtml='';
+  // General
+  if(general){convHtml+=mkConv(general)}
+  // My DMs
+  if(myDms.length)convHtml+='<div class="chat-sec">── 私聊 My DMs ──</div>';
+  myDms.forEach(c=>{convHtml+=mkConv(c)});
+  // Admin: staff DMs
+  if(isAdmin&&staffDms.length){
+    convHtml+='<div class="chat-sec">── 员工私聊 Staff DMs ──</div>';
+    staffDms.forEach(c=>{convHtml+=mkConv(c)});
+  }
+
+  el.innerHTML=`<div class="chat-wrap">
+    <div class="chat-list">
+      <div class="chat-list-header">💬 聊天 Chat</div>
+      <div class="chat-list-body">${convHtml}</div>
+    </div>
+    <div class="chat-main">
+      <div class="chat-main-header" id="chatHeader">${channelName(chatChannel)}</div>
+      <div class="chat-messages" id="chatMsgs"></div>
+      ${canSendIn(chatChannel)?`<div class="chat-input"><input type="text" id="chatInput" placeholder="输入消息 Type a message..." onkeydown="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">发送 Send</button></div>`:'<div style="padding:12px 16px;text-align:center;color:var(--text3);font-size:.82rem;background:#fff;border-top:1px solid var(--border)">查看模式 View only</div>'}
+    </div>
+  </div>`;
+  loadChatMessages();
+  startChatPoll();
+}
+
+function canSendIn(key){
+  if(key==='general')return true;
+  if(!key.startsWith('dm_'))return false;
+  const ids=key.replace('dm_','').split('_');
+  return ids.includes(U.id);
+}
+
+function mkConv(c){
+  const preview=c.lastMsg?esc(c.lastMsg.message).slice(0,30):'';
+  return `<div class="chat-conv${c.key===chatChannel?' active':''}" onclick="switchChannel('${c.key}')">
+    <div class="chat-conv-info"><div class="chat-conv-name">${c.name}</div>${preview?`<div class="chat-conv-preview">${preview}</div>`:''}</div>
+    ${c.unread>0?`<span class="chat-unread">${c.unread}</span>`:''}</div>`;
+}
+
+async function switchChannel(key){
+  chatChannel=key;
+  // Update header
+  const header=document.getElementById('chatHeader');
+  if(header)header.textContent=channelName(key);
+  // Update active state in list
+  document.querySelectorAll('.chat-conv').forEach(el=>{
+    el.classList.toggle('active',el.onclick.toString().includes("'"+key+"'"));
+  });
+  // Update input area
+  const chatMain=document.querySelector('.chat-main');
+  if(chatMain){
+    const oldInput=chatMain.querySelector('.chat-input')||chatMain.querySelector('div:last-child');
+    if(canSendIn(key)){
+      if(!chatMain.querySelector('.chat-input')){
+        if(oldInput)oldInput.outerHTML=`<div class="chat-input"><input type="text" id="chatInput" placeholder="输入消息 Type a message..." onkeydown="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">发送 Send</button></div>`;
+      }
+    }else{
+      const inp=chatMain.querySelector('.chat-input');
+      if(inp)inp.outerHTML='<div style="padding:12px 16px;text-align:center;color:var(--text3);font-size:.82rem;background:#fff;border-top:1px solid var(--border)">查看模式 View only</div>';
+    }
+  }
+  await loadChatMessages();
+  markRead(key);
+  // Update unread in list
+  const badge=document.querySelector('.chat-conv.active .chat-unread');
+  if(badge)badge.remove();
+}
+
+async function loadChatMessages(){
+  const container=document.getElementById('chatMsgs');
+  if(!container)return;
+  let msgs=[];
+  try{msgs=await sb.get('tks_messages','channel_key=eq.'+chatChannel+'&order=created_at.asc&limit=200');if(!Array.isArray(msgs))msgs=[];}catch(e){msgs=[];}
+  if(!msgs.length){container.innerHTML='<div class="chat-empty">暂无消息<br>No messages yet</div>';return;}
+  let h='';let lastDate='';
+  for(const m of msgs){
+    const d=formatDate(m.created_at);
+    if(d!==lastDate){lastDate=d;h+=`<div class="chat-date-sep">${d}</div>`;}
+    const mine=m.sender_id===U.id;
+    const sender=staffList.find(s=>s.id===m.sender_id);
+    h+=`<div class="chat-msg ${mine?'mine':'other'}">
+      <div class="cm-name">${mine?'You 你':esc(sender?.display_name||'?')}</div>
+      <div class="cm-bubble">${esc(m.message)}</div>
+      <div class="cm-time">${formatTime(m.created_at)}</div>
+    </div>`;
+  }
+  container.innerHTML=h;
+  container.scrollTop=container.scrollHeight;
+}
+
+async function sendMsg(){
+  const input=document.getElementById('chatInput');
+  if(!input)return;
+  const msg=input.value.trim();
+  if(!msg)return;
+  input.value='';
+  try{
+    await sb.post('tks_messages',{channel_key:chatChannel,sender_id:U.id,message:msg});
+    await loadChatMessages();
+    markRead(chatChannel);
+  }catch(e){toast('❌ 发送失败');input.value=msg;}
+}
+
+async function markRead(key){
+  try{await sb.upsert('tks_read_status',{user_id:U.id,channel_key:key,last_read_at:new Date().toISOString()});}catch(e){}
+}
+
+function startChatPoll(){
+  stopChatPoll();
+  chatPollTimer=setInterval(async()=>{
+    if(currentTab!=='chat')return;
+    await loadChatMessages();
+    updateChatBadge();
+  },5000);
+}
+function stopChatPoll(){if(chatPollTimer){clearInterval(chatPollTimer);chatPollTimer=null;}}
+
+async function updateChatBadge(){
+  try{
+    const msgs=await sb.get('tks_messages','order=created_at.desc&limit=200');
+    if(!Array.isArray(msgs))return;
+    const rs=await sb.get('tks_read_status','user_id=eq.'+U.id);
+    const readMap={};if(Array.isArray(rs))rs.forEach(r=>{readMap[r.channel_key]=new Date(r.last_read_at)});
+    let total=0;
+    const counted=new Set();
+    msgs.forEach(m=>{
+      if(m.sender_id===U.id)return;
+      if(m.channel_key.startsWith('dm_')&&!m.channel_key.replace('dm_','').split('_').includes(U.id))return;
+      const lastRead=readMap[m.channel_key]||new Date(0);
+      if(new Date(m.created_at)>lastRead&&!counted.has(m.id)){counted.add(m.id);total++;}
+    });
+    const nav=document.getElementById('nav_chat');if(!nav)return;
+    const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
+    if(total>0)nav.innerHTML+='<span class="nav-badge">'+total+'</span>';
+  }catch(e){}
 }
 
 /* ---- STORES ---- */
