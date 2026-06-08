@@ -257,6 +257,7 @@ const resultTag=r=>{const i=RESULTS.find(x=>x.v===r);return '<span class="tag ta
 const storeOpts=(sel='')=>'<option value="">-- 选择店铺 Select Store --</option>'+stores.map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.store_name+'</option>').join('');
 const staffOpts=(sel='')=>'<option value="">-- 未指派 Unassigned --</option>'+staffList.map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.display_name+'</option>').join('');
 const staffName=id=>{if(!id)return '—';const s=staffList.find(x=>x.id===id);return s?s.display_name:'—'};
+function trend(c,p){if(c==null||p==null)return '';const d=+(c-p).toFixed(2);if(d>0)return ' <span style="color:var(--ok);font-size:.68rem;font-weight:700">↑+'+d+'</span>';if(d<0)return ' <span style="color:var(--bad);font-size:.68rem;font-weight:700">↓'+d+'</span>';return ' <span style="color:var(--text3);font-size:.68rem">→</span>'}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function timeAgo(ts){
@@ -374,8 +375,8 @@ async function rHome(el){
   const ck=Array.isArray(checks)?checks:[];
   const myDone=ck.filter(c=>c.completed_by===U.id).length;
   const myTotal=ms.length*TASKS.length;
-  const scores=await sb.get('tks_scores','order=record_date.desc&limit=100');
-  const latest={};if(Array.isArray(scores))scores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s});
+  const scores=await sb.get('tks_scores','order=record_date.desc&limit=200');
+  const latest={},prev={};if(Array.isArray(scores))scores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
   const allTodos=await sb.get('tks_todos','status=in.(open,claimed)&order=created_at.asc');
   const myTodos=Array.isArray(allTodos)?allTodos.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id):[];
 
@@ -398,12 +399,13 @@ async function rHome(el){
     if(myTodos.length>3)h+=`<div style="text-align:center;padding:8px"><span style="cursor:pointer;color:var(--pri);font-size:.82rem" onclick="go('todos')">查看全部 ${myTodos.length} 条 View all →</span></div>`;
   }
   if(Object.keys(latest).length>0){
-    h+='<div class="sec-title">各店铺最新分数 Latest Store Scores</div><div class="card"><table class="score-table"><thead><tr><th>店铺 Store</th><th>总分</th><th>产品</th><th>物流</th><th>客服</th><th>日期</th></tr></thead><tbody>';
-    for(const s of stores){const sc=latest[s.id];if(!sc)continue;
+    h+='<div class="sec-title">各店铺最新分数 Latest Store Scores</div><div class="card"><table class="score-table"><thead><tr><th>店铺 Store</th><th>总分</th><th>趋势</th><th>产品</th><th>物流</th><th>客服</th><th>日期</th></tr></thead><tbody>';
+    for(const s of stores){const sc=latest[s.id];if(!sc)continue;const pv=prev[s.id];
       h+=`<tr><td><b>${esc(s.store_name)}</b></td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
-        <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}</td>
-        <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}</td>
-        <td class="${sColor(sc.customer_service)}">${sc.customer_service??'-'}</td>
+        <td>${pv?trend(sc.overall_score,pv.overall_score):'—'}</td>
+        <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}${pv?trend(sc.product_satisfaction,pv.product_satisfaction):''}</td>
+        <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}${pv?trend(sc.fulfillment,pv.fulfillment):''}</td>
+        <td class="${sColor(sc.customer_service)}">${sc.customer_service??'-'}${pv?trend(sc.customer_service,pv.customer_service):''}</td>
         <td style="color:var(--text3)">${sc.record_date?.slice(5)||'-'}</td></tr>`}
     h+='</tbody></table></div>';}
   el.innerHTML=h;
@@ -574,15 +576,16 @@ async function toggleCk(key,storeId,complete){
 /* ---- SCORES ---- */
 async function rScore(el){
   const allScores=await sb.get('tks_scores','order=record_date.desc&limit=200');
-  const latest={};if(Array.isArray(allScores))allScores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s});
+  const latest={},prev={};if(Array.isArray(allScores))allScores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
   let h=`<div class="main-header"><h1>📊 店铺分数</h1><p>Store Scores</p></div>`;
   if(Object.keys(latest).length>0){
-    h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>总分</th><th>产品45%</th><th>物流40%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
-    for(const s of stores){const sc=latest[s.id];if(!sc)continue;
+    h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>总分</th><th>趋势</th><th>产品45%</th><th>物流40%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
+    for(const s of stores){const sc=latest[s.id];if(!sc)continue;const pv=prev[s.id];
       h+=`<tr><td><b>${esc(s.store_name)}</b></td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
-        <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}</td>
-        <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}</td>
-        <td class="${sColor(sc.customer_service)}">${sc.customer_service??'-'}</td>
+        <td>${pv?trend(sc.overall_score,pv.overall_score):'—'}</td>
+        <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}${pv?trend(sc.product_satisfaction,pv.product_satisfaction):''}</td>
+        <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}${pv?trend(sc.fulfillment,pv.fulfillment):''}</td>
+        <td class="${sColor(sc.customer_service)}">${sc.customer_service??'-'}${pv?trend(sc.customer_service,pv.customer_service):''}</td>
         <td>${sc.negative_review_rate??'-'}</td><td>${sc.response_rate_12h??'-'}</td>
         <td style="color:var(--text3)">${sc.record_date?.slice(5)}</td></tr>`}
     h+='</tbody></table></div>';}
@@ -636,7 +639,7 @@ async function saveSc(){
     response_rate_12h:parseFloat(document.getElementById('sRESP').value)||null,
     recorded_by:U.id};
   try{const r=await sb.upsert('tks_scores',d);
-    if(Array.isArray(r)&&r.length>0){toast('✅ 分数已保存!');['sO','sP','sF','sS','sNR','sRR','sFDR','sSFCR','sCR','sRESP'].forEach(i=>{const e=document.getElementById(i);if(e)e.value=''});loadHistory();}
+    if(Array.isArray(r)&&r.length>0){toast('✅ 分数已保存!');rScore(document.getElementById('mainBody'));}
     else toast('❌ 保存失败: '+(r.message||''));
   }catch(e){toast('❌ 网络错误')}
 }
@@ -644,13 +647,17 @@ async function loadHistory(){
   const sid=document.getElementById('scStore').value;const c=document.getElementById('scoreHist');
   if(!sid){c.innerHTML='';return}
   const sc=await sb.get('tks_scores','store_id=eq.'+sid+'&order=record_date.desc&limit=30');
-  if(!Array.isArray(sc)||!sc.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--text3)">暂无记录</div>';return}
-  let h='<div class="sec-title">历史分数 Score History</div><div class="card"><table class="score-table"><thead><tr><th>日期</th><th>总分</th><th>产品</th><th>物流</th><th>客服</th><th>差评%</th><th>12H%</th></tr></thead><tbody>';
-  for(const s of sc)h+=`<tr><td>${s.record_date}</td><td class="${sColor(s.overall_score)}"><b>${s.overall_score??'-'}</b></td>
-    <td class="${sColor(s.product_satisfaction)}">${s.product_satisfaction??'-'}</td>
-    <td class="${sColor(s.fulfillment)}">${s.fulfillment??'-'}</td>
-    <td class="${sColor(s.customer_service)}">${s.customer_service??'-'}</td>
-    <td>${s.negative_review_rate??'-'}</td><td>${s.response_rate_12h??'-'}</td></tr>`;
+  if(!Array.isArray(sc)||!sc.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--text3)">暂无记录 No records yet</div>';return}
+  const sn=stores.find(s=>s.id===sid);
+  let h='<div class="sec-title">📈 历史分数 Score History — '+(sn?esc(sn.store_name):'')+'</div><div class="card"><table class="score-table"><thead><tr><th>日期 Date</th><th>总分 Overall</th><th>产品 Product</th><th>物流 Fulfill</th><th>客服 Service</th><th>差评% NR</th><th>12H%</th></tr></thead><tbody>';
+  for(let i=0;i<sc.length;i++){const s=sc[i];const p=sc[i+1]||null;
+    h+=`<tr><td>${s.record_date}</td>
+      <td class="${sColor(s.overall_score)}"><b>${s.overall_score??'-'}</b>${p?trend(s.overall_score,p.overall_score):''}</td>
+      <td class="${sColor(s.product_satisfaction)}">${s.product_satisfaction??'-'}${p?trend(s.product_satisfaction,p.product_satisfaction):''}</td>
+      <td class="${sColor(s.fulfillment)}">${s.fulfillment??'-'}${p?trend(s.fulfillment,p.fulfillment):''}</td>
+      <td class="${sColor(s.customer_service)}">${s.customer_service??'-'}${p?trend(s.customer_service,p.customer_service):''}</td>
+      <td>${s.negative_review_rate??'-'}${p?trend(s.negative_review_rate,p.negative_review_rate):''}</td>
+      <td>${s.response_rate_12h??'-'}${p?trend(s.response_rate_12h,p.response_rate_12h):''}</td></tr>`}
   h+='</tbody></table></div>';c.innerHTML=h;
 }
 
