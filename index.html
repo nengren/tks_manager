@@ -189,6 +189,11 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .chat-msg.other .cm-bubble{background:#fff;border:1px solid var(--border);border-top-left-radius:4px}
 .chat-msg.mine .cm-bubble{background:var(--pri);color:#fff;border-bottom-right-radius:4px}
 .chat-msg .cm-time{font-size:.6rem;color:var(--text3);margin-top:3px}
+.chat-msg .cm-del{font-size:.6rem;color:var(--text3);cursor:pointer;margin-left:6px;opacity:0;transition:opacity .15s}
+.chat-msg:hover .cm-del{opacity:1}
+.chat-msg .cm-del:hover{color:var(--bad)}
+.cm-deleted{font-style:italic;color:var(--text3)!important;background:#f8fafc!important;border:1px dashed var(--border)!important}
+.cm-deleted-admin{text-decoration:line-through;opacity:.6}
 .chat-input{padding:12px 16px;background:#fff;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
 .chat-input input{flex:1;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;outline:none}
 .chat-input input:focus{border-color:var(--pri)}
@@ -857,7 +862,7 @@ async function rChat(el){
   channels.forEach((ch,key)=>{
     const rs=readStatus.find(r=>r.channel_key===key);
     const lastRead=rs?new Date(rs.last_read_at):new Date(0);
-    ch.unread=allMsgs.filter(m=>m.channel_key===key&&new Date(m.created_at)>lastRead&&m.sender_id!==U.id).length;
+    ch.unread=allMsgs.filter(m=>m.channel_key===key&&new Date(m.created_at)>lastRead&&m.sender_id!==U.id&&!m.deleted_at).length;
   });
   // Add DM options for staff not yet chatted with
   staffList.filter(s=>s.is_active&&s.id!==U.id).forEach(s=>{
@@ -909,7 +914,7 @@ function canSendIn(key){
 }
 
 function mkConv(c){
-  const preview=c.lastMsg?esc(c.lastMsg.message).slice(0,30):'';
+  const preview=c.lastMsg?(c.lastMsg.deleted_at?'[已撤回]':esc(c.lastMsg.message).slice(0,30)):'';
   return `<div class="chat-conv${c.key===chatChannel?' active':''}" onclick="switchChannel('${c.key}')">
     <div class="chat-conv-info"><div class="chat-conv-name">${c.name}</div>${preview?`<div class="chat-conv-preview">${preview}</div>`:''}</div>
     ${c.unread>0?`<span class="chat-unread">${c.unread}</span>`:''}</div>`;
@@ -938,10 +943,10 @@ async function switchChannel(key){
     }
   }
   await loadChatMessages();
-  markRead(key);
+  // Don't mark as read here - only mark when user replies (in sendMsg)
   // Update unread in list
   const badge=document.querySelector('.chat-conv.active .chat-unread');
-  if(badge)badge.remove();
+  // Keep badge visible to remind user to reply
 }
 
 async function loadChatMessages(){
@@ -950,20 +955,34 @@ async function loadChatMessages(){
   let msgs=[];
   try{msgs=await sb.get('tks_messages','channel_key=eq.'+chatChannel+'&order=created_at.asc&limit=200');if(!Array.isArray(msgs))msgs=[];}catch(e){msgs=[];}
   if(!msgs.length){container.innerHTML='<div class="chat-empty">暂无消息<br>No messages yet</div>';return;}
+  const isAdmin=U.role==='admin';
   let h='';let lastDate='';
   for(const m of msgs){
     const d=formatDate(m.created_at);
     if(d!==lastDate){lastDate=d;h+=`<div class="chat-date-sep">${d}</div>`;}
     const mine=m.sender_id===U.id;
     const sender=staffList.find(s=>s.id===m.sender_id);
+    const isDeleted=!!m.deleted_at;
+    // Determine what to show
+    let bubbleContent,bubbleClass='cm-bubble';
+    if(isDeleted&&!isAdmin){
+      bubbleContent='[已撤回 Message withdrawn]';bubbleClass='cm-bubble cm-deleted';
+    }else if(isDeleted&&isAdmin){
+      bubbleContent=esc(m.message);bubbleClass='cm-bubble cm-deleted-admin';
+    }else{
+      bubbleContent=esc(m.message);
+    }
+    // Delete button: own messages can delete, admin can delete any
+    const canDel=!isDeleted&&(mine||isAdmin);
     h+=`<div class="chat-msg ${mine?'mine':'other'}">
       <div class="cm-name">${mine?'You 你':esc(sender?.display_name||'?')}</div>
-      <div class="cm-bubble">${esc(m.message)}</div>
-      <div class="cm-time">${formatTime(m.created_at)}</div>
+      <div class="${bubbleClass}">${bubbleContent}</div>
+      <div class="cm-time">${formatTime(m.created_at)}${canDel?` <span class="cm-del" onclick="deleteMsg('${m.id}')" title="撤回 Delete">🗑️</span>`:''}</div>
     </div>`;
   }
+  const wasAtBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
   container.innerHTML=h;
-  container.scrollTop=container.scrollHeight;
+  if(wasAtBottom)container.scrollTop=container.scrollHeight;
 }
 
 async function sendMsg(){
@@ -975,8 +994,17 @@ async function sendMsg(){
   try{
     await sb.post('tks_messages',{channel_key:chatChannel,sender_id:U.id,message:msg});
     await loadChatMessages();
-    markRead(chatChannel);
+    markRead(chatChannel); // Only mark as read when you REPLY
+    updateChatUnreadList();
   }catch(e){toast('❌ 发送失败');input.value=msg;}
+}
+
+async function deleteMsg(id){
+  if(!confirm('撤回这条消息？\nWithdraw this message?'))return;
+  try{
+    await sb.patch('tks_messages',{id},{deleted_at:new Date().toISOString(),deleted_by:U.id});
+    await loadChatMessages();
+  }catch(e){toast('❌ 操作失败');}
 }
 
 async function markRead(key){
@@ -989,9 +1017,36 @@ function startChatPoll(){
     if(currentTab!=='chat')return;
     await loadChatMessages();
     updateChatBadge();
+    updateChatUnreadList();
   },5000);
 }
 function stopChatPoll(){if(chatPollTimer){clearInterval(chatPollTimer);chatPollTimer=null;}}
+
+async function updateChatUnreadList(){
+  // Refresh unread badges in conversation list without re-rendering everything
+  try{
+    const msgs=await sb.get('tks_messages','order=created_at.desc&limit=300');
+    if(!Array.isArray(msgs))return;
+    const rs=await sb.get('tks_read_status','user_id=eq.'+U.id);
+    const readMap={};if(Array.isArray(rs))rs.forEach(r=>{readMap[r.channel_key]=new Date(r.last_read_at)});
+    // Update each conv item
+    document.querySelectorAll('.chat-conv').forEach(el=>{
+      const onclick=el.getAttribute('onclick')||el.onclick?.toString()||'';
+      const match=onclick.match(/switchChannel\('([^']+)'\)/);
+      if(!match)return;
+      const key=match[1];
+      const lastRead=readMap[key]||new Date(0);
+      const unread=msgs.filter(m=>m.channel_key===key&&new Date(m.created_at)>lastRead&&m.sender_id!==U.id&&!m.deleted_at).length;
+      const existing=el.querySelector('.chat-unread');
+      if(unread>0){
+        if(existing)existing.textContent=unread;
+        else{const span=document.createElement('span');span.className='chat-unread';span.textContent=unread;el.appendChild(span);}
+      }else{
+        if(existing)existing.remove();
+      }
+    });
+  }catch(e){}
+}
 
 async function updateChatBadge(){
   try{
@@ -1002,7 +1057,7 @@ async function updateChatBadge(){
     let total=0;
     const counted=new Set();
     msgs.forEach(m=>{
-      if(m.sender_id===U.id)return;
+      if(m.sender_id===U.id||m.deleted_at)return;
       if(m.channel_key.startsWith('dm_')&&!m.channel_key.replace('dm_','').split('_').includes(U.id))return;
       const lastRead=readMap[m.channel_key]||new Date(0);
       if(new Date(m.created_at)>lastRead&&!counted.has(m.id)){counted.add(m.id);total++;}
