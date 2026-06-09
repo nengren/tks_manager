@@ -242,7 +242,7 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 <script>
 const SB_URL='https://glohjxbpgqqzspytnbfm.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsb2hqeGJwZ3FxenNweXRuYmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwODkyODEsImV4cCI6MjA5MDY2NTI4MX0.DF10KD-ePvAoiZoEGpvai5w1HVQeUPYQIHuLa3YXCps';
-let U=null,stores=[],staffList=[],currentTab='home',todoReminderTimer=null,chatChannel='general',chatPollTimer=null;
+let U=null,stores=[],staffList=[],currentTab='home',todoReminderTimer=null,chatChannel='general',chatPollTimer=null,chatUnreadTotal=0,lastKnownUnread=0;
 
 const sb={
   h:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
@@ -332,8 +332,9 @@ async function initApp(){
   await loadData();buildNav();go('home');
   checkTodoReminder();
   todoReminderTimer=setInterval(checkTodoReminder,3*60*60*1000);
+  requestNotifPermission();
   updateChatBadge();
-  setInterval(updateChatBadge,30000);
+  setInterval(updateChatBadge,10000);
 }
 async function loadData(){
   stores=await sb.get('tks_stores','is_active=eq.true&order=store_name');
@@ -387,7 +388,7 @@ function buildNav(){
   ];
   if(a)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
   document.getElementById('sideNav').innerHTML=tabs.map(t=>t.id==='_sep'?'<div class="nav-sep"></div>':
-    `<button class="nav-item${t.id===currentTab?' active':''}" id="nav_${t.id}" onclick="go('${t.id}')"><span class="ni">${t.icon}</span>${t.label}</button>`).join('');
+    `<button class="nav-item${t.id===currentTab?' active':''}" id="nav_${t.id}" onclick="go('${t.id}')"><span class="ni">${t.icon}</span>${t.label}${t.id==='chat'&&chatUnreadTotal>0?'<span class="nav-badge">'+chatUnreadTotal+'</span>':''}</button>`).join('');
   updateTodoBadge();
 }
 async function updateTodoBadge(){
@@ -1054,17 +1055,53 @@ async function updateChatBadge(){
     if(!Array.isArray(msgs))return;
     const rs=await sb.get('tks_read_status','user_id=eq.'+U.id);
     const readMap={};if(Array.isArray(rs))rs.forEach(r=>{readMap[r.channel_key]=new Date(r.last_read_at)});
-    let total=0;
+    let total=0;let newestMsg=null;
     const counted=new Set();
     msgs.forEach(m=>{
       if(m.sender_id===U.id||m.deleted_at)return;
       if(m.channel_key.startsWith('dm_')&&!m.channel_key.replace('dm_','').split('_').includes(U.id))return;
       const lastRead=readMap[m.channel_key]||new Date(0);
-      if(new Date(m.created_at)>lastRead&&!counted.has(m.id)){counted.add(m.id);total++;}
+      if(new Date(m.created_at)>lastRead&&!counted.has(m.id)){counted.add(m.id);total++;if(!newestMsg)newestMsg=m;}
     });
-    const nav=document.getElementById('nav_chat');if(!nav)return;
-    const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
-    if(total>0)nav.innerHTML+='<span class="nav-badge">'+total+'</span>';
+    // Notify if NEW messages arrived since last check
+    if(total>lastKnownUnread&&newestMsg){
+      const sender=staffList.find(s=>s.id===newestMsg.sender_id);
+      showDesktopNotif('💬 '+(sender?.display_name||'New message'),newestMsg.message.slice(0,80));
+      playNotifSound();
+    }
+    lastKnownUnread=total;
+    chatUnreadTotal=total;
+    // Update sidebar badge
+    const nav=document.getElementById('nav_chat');
+    if(nav){const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
+      if(total>0)nav.innerHTML+='<span class="nav-badge">'+total+'</span>';}
+    // Update page title
+    document.title=total>0?'('+total+') TK Store Manager':'TK Store Manager';
+  }catch(e){}
+}
+
+// ---- NOTIFICATIONS ----
+function requestNotifPermission(){
+  if('Notification' in window&&Notification.permission==='default'){
+    Notification.requestPermission();
+  }
+}
+function showDesktopNotif(title,body){
+  if('Notification' in window&&Notification.permission==='granted'){
+    try{const n=new Notification(title,{body:body,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🏪</text></svg>'});
+      n.onclick=()=>{window.focus();go('chat');n.close()};
+      setTimeout(()=>n.close(),10000);
+    }catch(e){}
+  }
+}
+function playNotifSound(){
+  try{const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator();const gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.frequency.value=880;osc.type='sine';
+    gain.gain.setValueAtTime(0.3,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01,ctx.currentTime+0.3);
+    osc.start();osc.stop(ctx.currentTime+0.3);
   }catch(e){}
 }
 
