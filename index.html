@@ -533,13 +533,13 @@ async function rTodos(el){
   const todos=Array.isArray(all)?all:[];
 
   // Leaderboard
-  const creatorMap={},completerMap={};
+  const creatorMap={},workerMap={};
   todos.forEach(t=>{
     if(t.created_by)creatorMap[t.created_by]=(creatorMap[t.created_by]||0)+1;
-    if(t.completed_by)completerMap[t.completed_by]=(completerMap[t.completed_by]||0)+1;
+    if(t.claimed_by&&t.status==='done')workerMap[t.claimed_by]=(workerMap[t.claimed_by]||0)+1;
   });
   const topC=Object.entries(creatorMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const topD=Object.entries(completerMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const topD=Object.entries(workerMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
   const mine=todos.filter(t=>!['done','archived'].includes(t.status)&&(t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin'))));
   const open=todos.filter(t=>t.status==='open');
@@ -571,7 +571,7 @@ async function rTodos(el){
 
   h+='<div class="form-row">';
   h+=`<div class="card"><h3>🏆 创建最多 Top Creators</h3>${topC.length?mkLb(topC,topC[0]?.[1]):'<div style="color:var(--text3);font-size:.82rem;padding:8px 0">暂无数据 No data</div>'}</div>`;
-  h+=`<div class="card"><h3>⚡ 完成最多 Top Completers</h3>${topD.length?mkLb(topD,topD[0]?.[1]):'<div style="color:var(--text3);font-size:.82rem;padding:8px 0">暂无数据 No data</div>'}</div>`;
+  h+=`<div class="card"><h3>⚡ 处理最多 Top Workers</h3>${topD.length?mkLb(topD,topD[0]?.[1]):'<div style="color:var(--text3);font-size:.82rem;padding:8px 0">暂无数据 No data</div>'}</div>`;
   h+='</div>';
 
   h+='<div class="tab-filter">';
