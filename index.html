@@ -136,6 +136,9 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .todo-item:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .todo-item.status-open{border-left:4px solid var(--pri)}
 .todo-item.status-claimed{border-left:4px solid var(--warn)}
+.todo-item.status-submitted{border-left:4px solid var(--pri)}
+.todo-item.status-rejected{border-left:4px solid var(--bad)}
+.todo-item.status-done{border-left:4px solid var(--ok)}
 .todo-item.status-done{border-left:4px solid var(--ok);opacity:.65}
 .todo-item.status-archived{border-left:4px solid var(--text3);opacity:.45}
 .todo-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
@@ -143,6 +146,10 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .tbadge{padding:2px 10px;border-radius:20px;font-size:.65rem;font-weight:700}
 .tbadge-open{background:var(--pri-l);color:var(--pri-d)}
 .tbadge-claimed{background:var(--warn-bg);color:#92400e}
+.tbadge-submitted{background:var(--pri-l);color:var(--pri-d)}
+.tbadge-rejected{background:var(--bad-bg);color:var(--bad)}
+.todo-result{background:#f0fdf4;border-left:3px solid var(--ok);padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0;font-size:.82rem}
+.todo-reject{background:var(--bad-bg);border-left:3px solid var(--bad);padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0;font-size:.82rem}
 .tbadge-done{background:var(--ok-bg);color:#065f46}
 .todo-meta{font-size:.72rem;color:var(--text3);margin-top:6px;display:flex;flex-wrap:wrap;gap:10px}
 .todo-desc{font-size:.8rem;color:var(--text2);margin-top:8px;line-height:1.6}
@@ -347,9 +354,9 @@ function myStores(){return U.role==='admin'?stores:stores.filter(s=>s.assigned_t
 /* ---- TODO REMINDER ---- */
 async function checkTodoReminder(){
   try{
-    const all=await sb.get('tks_todos','status=in.(open,claimed)&order=created_at.asc');
+    const all=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
     if(!Array.isArray(all)||all.length===0)return;
-    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id);
+    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin')));
     if(mine.length===0)return;
     showReminderModal(mine);
   }catch(e){console.error('reminder error',e)}
@@ -393,9 +400,9 @@ function buildNav(){
 }
 async function updateTodoBadge(){
   try{
-    const all=await sb.get('tks_todos','status=in.(open,claimed)&order=created_at.asc');
+    const all=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
     if(!Array.isArray(all))return;
-    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id);
+    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin')));
     const nav=document.getElementById('nav_todos');if(!nav)return;
     const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
     if(mine.length>0)nav.innerHTML+='<span class="nav-badge">'+mine.length+'</span>';
@@ -418,8 +425,8 @@ async function rHome(el){
   const myTotal=ms.length*TASKS.length;
   const scores=await sb.get('tks_scores','order=record_date.desc&limit=200');
   const latest={},prev={};if(Array.isArray(scores))scores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
-  const allTodos=await sb.get('tks_todos','status=in.(open,claimed)&order=created_at.asc');
-  const myTodos=Array.isArray(allTodos)?allTodos.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id):[];
+  const allTodos=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
+  const myTodos=Array.isArray(allTodos)?allTodos.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin'))):[];
 
   let h=`<div class="main-header"><h1>👋 ${U.display_name}</h1><p>${new Date().toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>`;
   h+=`<div class="stats-row">
@@ -455,28 +462,68 @@ async function rHome(el){
 /* ---- TODOS ---- */
 let todoFilter='mine';
 function renderTodoCard(t,compact=false){
-  const statusLabel={open:'待认领 Open',claimed:'处理中 In Progress',done:'已完成 Done',archived:'已归档'};
-  const statusCls={open:'tbadge-open',claimed:'tbadge-claimed',done:'tbadge-done',archived:'tbadge-done'};
+  const statusLabel={open:'待认领 Open',claimed:'🔧 处理中 Working',submitted:'📝 待审核 Review',done:'✅ 已完成 Done',rejected:'↩️ 已退回 Rejected',archived:'已归档'};
+  const statusCls={open:'tbadge-open',claimed:'tbadge-claimed',submitted:'tbadge-submitted',done:'tbadge-done',rejected:'tbadge-rejected',archived:'tbadge-done'};
   const isAdmin=U.role==='admin';
+  const isCreator=t.created_by===U.id||isAdmin;
+  const isWorker=t.claimed_by===U.id||t.assigned_to===U.id;
+
   let actions='';
-  if(t.status!=='done'&&t.status!=='archived'){
-    if(t.status==='open')actions+=`<button class="btn btn-ghost btn-sm" onclick="claimTodo('${t.id}')">🙋 认领 Claim</button>`;
-    if((t.claimed_by===U.id||t.assigned_to===U.id||isAdmin))actions+=`<button class="btn btn-ok btn-sm" onclick="doneTodo('${t.id}')">✅ 完成 Done</button>`;
-    if(t.created_by===U.id||isAdmin)actions+=`<button class="btn btn-bad btn-sm" onclick="archiveTodo('${t.id}')">🗑️ 归档</button>`;
+  if(!compact){
+    // Action buttons based on status
+    if(t.status==='open'){
+      actions+=`<button class="btn btn-ghost btn-sm" onclick="claimTodo('${t.id}')">🙋 认领 Claim</button>`;
+    }
+    if(t.status==='submitted'&&isCreator){
+      actions+=`<button class="btn btn-ok btn-sm" onclick="approveTodo('${t.id}')">✅ 确认完成 Approve</button>`;
+      actions+=`<button class="btn btn-bad btn-sm" onclick="rejectTodo('${t.id}')">↩️ 退回 Reject</button>`;
+    }
+    if((t.status==='done'||t.status==='archived')&&isCreator){
+      // No actions for completed
+    }
+    if(isCreator&&!['done','archived'].includes(t.status)){
+      actions+=`<button class="btn btn-ghost btn-sm" onclick="archiveTodo('${t.id}')">🗑️</button>`;
+    }
   }
+
+  // Result display
+  let resultHtml='';
+  if(t.result_text){
+    resultHtml=`<div class="todo-result"><b>📄 处理结果 Result:</b><br>${esc(t.result_text)}</div>`;
+  }
+  // Reject reason display
+  let rejectHtml='';
+  if(t.reject_reason&&(t.status==='rejected'||t.result_text)){
+    rejectHtml=`<div class="todo-reject"><b>↩️ 退回原因 Reject Reason:</b><br>${esc(t.reject_reason)}</div>`;
+  }
+
+  // Inline submit form for worker (when claimed or rejected)
+  let submitForm='';
+  if(!compact&&(t.status==='claimed'||t.status==='rejected')&&(isWorker||isAdmin)){
+    submitForm=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div class="fg"><label>${t.status==='rejected'?'📝 重新提交结果 Resubmit Result *':'📝 处理结果 Result * (必填)'}</label>
+        <textarea id="result_${t.id}" placeholder="描述处理结果，例如：已联系XXX，报价XXX，预计XXX时间完成\nDescribe the result: who you contacted, what was agreed, next steps...">${esc(t.result_text||'')}</textarea></div>
+      <button class="btn btn-pri btn-sm" onclick="submitTodo('${t.id}')">📝 提交结果 Submit Result</button>
+    </div>`;
+  }
+
   return `<div class="todo-item status-${t.status}">
     <div class="todo-header">
       <div class="todo-title">${esc(t.title)}</div>
       <span class="tbadge ${statusCls[t.status]||'tbadge-open'}">${statusLabel[t.status]||t.status}</span>
     </div>
     ${t.description?`<div class="todo-desc">${esc(t.description)}</div>`:''}
+    ${t.status==='rejected'?rejectHtml:''}
+    ${resultHtml}
+    ${t.status!=='rejected'?rejectHtml:''}
     <div class="todo-meta">
       <span>✍️ 创建: ${staffName(t.created_by)}</span>
       <span>🎯 ${t.assigned_to?'指定: '+staffName(t.assigned_to):'任何人可认领 Open'}</span>
       ${t.claimed_by?`<span>🙋 认领: ${staffName(t.claimed_by)}</span>`:''}
-      ${t.completed_by?`<span>✅ 完成: ${staffName(t.completed_by)}</span>`:''}
+      ${t.status==='done'?`<span>✅ 确认: ${staffName(t.completed_by)} ${t.completed_at?timeAgo(t.completed_at):''}</span>`:''}
       <span>🕐 ${timeAgo(t.created_at)}</span>
     </div>
+    ${submitForm}
     ${compact?'':`<div class="todo-actions">${actions}</div>`}
   </div>`;
 }
@@ -494,14 +541,15 @@ async function rTodos(el){
   const topC=Object.entries(creatorMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const topD=Object.entries(completerMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
-  const mine=todos.filter(t=>!['done','archived'].includes(t.status)&&(t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id));
+  const mine=todos.filter(t=>!['done','archived'].includes(t.status)&&(t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin'))));
   const open=todos.filter(t=>t.status==='open');
-  const inprog=todos.filter(t=>t.status==='claimed');
+  const inprog=todos.filter(t=>t.status==='claimed'||t.status==='rejected');
+  const submitted=todos.filter(t=>t.status==='submitted');
   const done=todos.filter(t=>t.status==='done');
   const allActive=todos.filter(t=>t.status!=='archived');
 
-  const filterMap={mine,open,inprogress:inprog,done,all:allActive};
-  const labels={mine:'我的 Mine ('+mine.length+')',open:'待认领 Open ('+open.length+')',inprogress:'处理中 In Progress ('+inprog.length+')',done:'已完成 Done ('+done.length+')',all:'全部 All ('+allActive.length+')'};
+  const filterMap={mine,open,inprogress:inprog,submitted,done,all:allActive};
+  const labels={mine:'我的 Mine ('+mine.length+')',open:'待认领 Open ('+open.length+')',inprogress:'处理中 Working ('+inprog.length+')',submitted:'待审核 Review ('+submitted.length+')',done:'已完成 Done ('+done.length+')',all:'全部 All ('+allActive.length+')'};
   const current=filterMap[todoFilter]||mine;
 
   const medals=['🥇','🥈','🥉','4️⃣','5️⃣'];
@@ -558,9 +606,25 @@ async function claimTodo(id){
     toast('✅ 已认领 Claimed!');updateTodoBadge();rTodos(document.getElementById('mainBody'));}
   catch(e){toast('❌ 操作失败')}
 }
-async function doneTodo(id){
+async function submitTodo(id){
+  const textarea=document.getElementById('result_'+id);
+  const result=textarea?textarea.value.trim():'';
+  if(!result){toast('请填写处理结果 Please enter the result');return;}
+  try{await sb.patch('tks_todos',{id},{result_text:result,submitted_at:new Date().toISOString(),status:'submitted',reject_reason:null});
+    toast('📝 已提交结果，等待审核 Result submitted!');updateTodoBadge();rTodos(document.getElementById('mainBody'));}
+  catch(e){toast('❌ 操作失败')}
+}
+async function approveTodo(id){
+  if(!confirm('确认完成？\nApprove and close this todo?'))return;
   try{await sb.patch('tks_todos',{id},{completed_by:U.id,completed_at:new Date().toISOString(),status:'done'});
-    toast('🎉 已完成 Done!');updateTodoBadge();rTodos(document.getElementById('mainBody'));}
+    toast('✅ 已确认完成 Approved!');updateTodoBadge();rTodos(document.getElementById('mainBody'));}
+  catch(e){toast('❌ 操作失败')}
+}
+async function rejectTodo(id){
+  const reason=prompt('请填写退回原因和具体操作要求：\nPlease enter reject reason and specific instructions:');
+  if(!reason||!reason.trim())return;
+  try{await sb.patch('tks_todos',{id},{reject_reason:reason.trim(),status:'rejected',submitted_at:null});
+    toast('↩️ 已退回 Rejected!');updateTodoBadge();rTodos(document.getElementById('mainBody'));}
   catch(e){toast('❌ 操作失败')}
 }
 async function archiveTodo(id){
