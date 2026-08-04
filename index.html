@@ -126,6 +126,9 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .sop-tpl{background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:.8rem;color:var(--text2);white-space:pre-wrap}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
+.badge-secretary{background:#fdf4ff;color:#a21caf}
+.pw-mask{letter-spacing:2px;font-family:monospace}
+.pw-cell{display:flex;align-items:center;gap:8px}
 .calc-box{background:var(--pri-l);border-radius:8px;padding:12px 16px;font-size:.82rem;color:var(--pri-d);margin:12px 0}
 .detail-toggle{font-size:.8rem;color:var(--pri);cursor:pointer;margin:10px 0;display:inline-block}
 .detail-toggle:hover{text-decoration:underline}
@@ -335,7 +338,7 @@ async function initApp(){
   document.getElementById('loginPage').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('sfName').textContent=U.display_name;
-  document.getElementById('sfRole').textContent=U.role==='admin'?'管理员 Admin':'员工 Staff';
+  document.getElementById('sfRole').textContent=U.role==='admin'?'管理员 Admin':(U.role==='secretary'?'秘书 Secretary':'员工 Staff');
   await loadData();buildNav();go('home');
   checkTodoReminder();
   todoReminderTimer=setInterval(checkTodoReminder,3*60*60*1000);
@@ -384,6 +387,7 @@ function showReminderModal(todos){
 /* ---- NAV ---- */
 function buildNav(){
   const a=U.role==='admin';
+  const canPw=a||U.role==='secretary'; // 密码库权限：仅 admin + secretary Password vault: admin + secretary only
   const tabs=[
     {id:'home',icon:'🏠',label:'首页 Home'},
     {id:'chat',icon:'💬',label:'聊天 Chat'},
@@ -393,6 +397,7 @@ function buildNav(){
     {id:'issues',icon:'⚠️',label:'问题 Issues'},
     {id:'sop',icon:'📖',label:'SOP'},
   ];
+  if(canPw)tabs.push({id:'passwords',icon:'🔐',label:'密码库 Passwords'});
   if(a)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
   document.getElementById('sideNav').innerHTML=tabs.map(t=>t.id==='_sep'?'<div class="nav-sep"></div>':
     `<button class="nav-item${t.id===currentTab?' active':''}" id="nav_${t.id}" onclick="go('${t.id}')"><span class="ni">${t.icon}</span>${t.label}${t.id==='chat'&&chatUnreadTotal>0?'<span class="nav-badge">'+chatUnreadTotal+'</span>':''}</button>`).join('');
@@ -412,7 +417,7 @@ function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers};
+  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords};
   if(render[id])render[id](m);
 }
 
@@ -632,6 +637,84 @@ async function archiveTodo(id){
   try{await sb.patch('tks_todos',{id},{status:'archived'});
     toast('🗑️ 已归档');updateTodoBadge();rTodos(document.getElementById('mainBody'));}
   catch(e){toast('❌ 操作失败')}
+}
+
+/* ---- PASSWORDS ---- */
+let pwRevealed={};
+async function rPasswords(el){
+  if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  let h=`<div class="main-header"><h1>🔐 密码账号库</h1><p>Password &amp; Account Vault &middot; 仅管理员和秘书可见 Admin &amp; Secretary only</p></div>`;
+  h+=`<div class="card"><h3>➕ 新增账号 Add Account</h3>
+    <div class="form-row" style="margin-top:14px">
+      <div class="fg"><label>平台/用途 Platform *</label><input type="text" id="pwPlatform" placeholder="例如 TikTok Shop 店铺A"></div>
+      <div class="fg"><label>账号 Account *</label><input type="text" id="pwAccount"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>密码 Password *</label><input type="text" id="pwPassword"></div>
+      <div class="fg"><label>备注 Note</label><input type="text" id="pwNote"></div>
+    </div>
+    <button class="btn btn-pri" onclick="addPassword()" style="max-width:240px">➕ 添加 Add</button>
+  </div>`;
+  h+='<div class="sec-title">账号列表 Account List</div><div class="card">';
+  let rows;
+  try{rows=await sb.rpc('tks_get_passwords',{p_user_id:U.id})}catch(e){rows=null}
+  if(!Array.isArray(rows)){
+    h+='<div style="color:var(--bad);font-size:.85rem;padding:12px 0">⚠️ 无法加载密码库，可能是数据库函数尚未配置（tks_get_passwords）。Failed to load — the database function may not be set up yet.</div>';
+  }else if(rows.length===0){
+    h+='<div style="color:var(--text3);text-align:center;padding:24px">暂无记录 No accounts yet</div>';
+  }else{
+    h+='<table class="score-table"><thead><tr><th>平台/用途</th><th>账号</th><th>密码</th><th>备注</th><th>操作</th></tr></thead><tbody>';
+    for(const p of rows){
+      const revealed=!!pwRevealed[p.id];
+      h+=`<tr>
+        <td><b>${esc(p.platform)}</b></td>
+        <td>${esc(p.account)}</td>
+        <td><div class="pw-cell"><span class="pw-mask" id="pwval_${p.id}">${revealed?esc(p.password):'••••••••'}</span>
+          <button class="btn btn-ghost btn-sm" onclick="togglePw('${p.id}','${esc(p.password)}')">${revealed?'🙈':'👁️'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyPw('${esc(p.password)}')">📋</button></div></td>
+        <td style="font-size:.8rem;color:var(--text2)">${esc(p.note||'—')}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="editPassword('${p.id}','${esc(p.platform)}','${esc(p.account)}','${esc(p.password)}','${esc(p.note||'')}')">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="delPassword('${p.id}','${esc(p.platform)}')">🗑️</button></td>
+      </tr>`;
+    }
+    h+='</tbody></table>';
+  }
+  h+='</div>';
+  el.innerHTML=h;
+}
+function togglePw(id,val){
+  pwRevealed[id]=!pwRevealed[id];
+  const span=document.getElementById('pwval_'+id);
+  if(span)span.textContent=pwRevealed[id]?val:'••••••••';
+  rPasswords(document.getElementById('mainBody'));
+}
+function copyPw(val){
+  navigator.clipboard.writeText(val).then(()=>toast('✅ 已复制 Copied')).catch(()=>toast('❌ 复制失败'));
+}
+async function addPassword(){
+  const platform=document.getElementById('pwPlatform').value.trim();
+  const account=document.getElementById('pwAccount').value.trim();
+  const password=document.getElementById('pwPassword').value.trim();
+  const note=document.getElementById('pwNote').value.trim();
+  if(!platform||!account||!password){toast('请填写平台、账号和密码');return}
+  const r=await sb.rpc('tks_add_password',{p_user_id:U.id,p_platform:platform,p_account:account,p_password:password,p_note:note||null});
+  if(r&&r.success!==false){toast('✅ 已添加');['pwPlatform','pwAccount','pwPassword','pwNote'].forEach(i=>document.getElementById(i).value='');rPasswords(document.getElementById('mainBody'));}
+  else toast('❌ 添加失败: '+(r&&r.message||'请检查数据库函数'));
+}
+async function editPassword(id,platform,account,password,note){
+  const np=prompt('平台/用途 Platform:',platform);if(np===null)return;
+  const na=prompt('账号 Account:',account);if(na===null)return;
+  const npw=prompt('密码 Password:',password);if(npw===null)return;
+  const nn=prompt('备注 Note:',note);if(nn===null)return;
+  const r=await sb.rpc('tks_update_password',{p_user_id:U.id,p_id:id,p_platform:np.trim(),p_account:na.trim(),p_password:npw.trim(),p_note:nn.trim()||null});
+  if(r&&r.success!==false){toast('✅ 已更新');rPasswords(document.getElementById('mainBody'));}
+  else toast('❌ 更新失败: '+(r&&r.message||'请检查数据库函数'));
+}
+async function delPassword(id,name){
+  if(!confirm('删除 "'+name+'" 这条账号记录？\nDelete this account record?'))return;
+  const r=await sb.rpc('tks_delete_password',{p_user_id:U.id,p_id:id});
+  if(r&&r.success!==false){toast('🗑️ 已删除');rPasswords(document.getElementById('mainBody'));}
+  else toast('❌ 删除失败: '+(r&&r.message||'请检查数据库函数'));
 }
 
 /* ---- TASKS ---- */
@@ -1210,7 +1293,7 @@ async function rUsers(el){
       </div>
       <div class="form-row">
         <div class="fg"><label>密码 Password *</label><input type="text" id="nuPass"></div>
-        <div class="fg"><label>角色 Role</label><select id="nuRole"><option value="staff">Staff 员工</option><option value="admin">Admin 管理员</option></select></div>
+        <div class="fg"><label>角色 Role</label><select id="nuRole"><option value="staff">Staff 员工</option><option value="secretary">Secretary 秘书</option><option value="admin">Admin 管理员</option></select></div>
       </div>
       <button class="btn btn-pri" onclick="createUser()" style="max-width:300px">➕ 创建 Create</button>
     </div>
@@ -1219,7 +1302,7 @@ async function rUsers(el){
   for(const u of users){
     const self=u.id===U.id;const uStores=stores.filter(s=>s.assigned_to===u.id);
     h+=`<tr><td><b>${esc(u.display_name)}</b>${self?' (You)':''}<br><span style="font-size:.72rem;color:var(--text3)">@${esc(u.username)}</span></td>
-      <td><span class="badge ${u.role==='admin'?'':'badge-staff'}">${u.role}</span></td>
+      <td><span class="badge ${u.role==='admin'?'':(u.role==='secretary'?'badge-secretary':'badge-staff')}">${u.role}</span></td>
       <td style="font-size:.8rem">${uStores.length?uStores.map(s=>esc(s.store_name)).join(', '):'<span style="color:var(--text3)">—</span>'}</td>
       <td>${u.is_active?'<span style="color:var(--ok)">✅</span>':'<span style="color:var(--bad)">🚫</span>'}</td>
       <td>${self?'—':'<button class="btn btn-ghost btn-sm" onclick="resetPw(\''+u.id+'\',\''+esc(u.display_name)+'\')">🔑</button> <button class="btn btn-ghost btn-sm" onclick="toggleUsr(\''+u.id+'\','+u.is_active+',\''+esc(u.display_name)+'\')">'+(u.is_active?'🚫':'✅')+'</button>'}</td></tr>`}
