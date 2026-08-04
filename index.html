@@ -398,6 +398,8 @@ function buildNav(){
     {id:'sop',icon:'📖',label:'SOP'},
   ];
   if(canPw)tabs.push({id:'passwords',icon:'🔐',label:'密码库 Passwords'});
+  if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
+  if(canPw)tabs.push({id:'attendance',icon:'🕐',label:'考勤登记 Attendance'});
   if(a)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
   document.getElementById('sideNav').innerHTML=tabs.map(t=>t.id==='_sep'?'<div class="nav-sep"></div>':
     `<button class="nav-item${t.id===currentTab?' active':''}" id="nav_${t.id}" onclick="go('${t.id}')"><span class="ni">${t.icon}</span>${t.label}${t.id==='chat'&&chatUnreadTotal>0?'<span class="nav-badge">'+chatUnreadTotal+'</span>':''}</button>`).join('');
@@ -417,7 +419,7 @@ function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords};
+  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses,attendance:rAttendance};
   if(render[id])render[id](m);
 }
 
@@ -715,6 +717,178 @@ async function delPassword(id,name){
   const r=await sb.rpc('tks_delete_password',{p_user_id:U.id,p_id:id});
   if(r&&r.success!==false){toast('🗑️ 已删除');rPasswords(document.getElementById('mainBody'));}
   else toast('❌ 删除失败: '+(r&&r.message||'请检查数据库函数'));
+}
+
+/* ---- EXPENSES ---- */
+let expCategories=[],expFilter={from:'',to:'',cat:'',kw:''};
+async function loadExpCategories(){
+  try{const r=await sb.rpc('tks_get_expense_categories',{p_user_id:U.id});expCategories=Array.isArray(r)?r:[]}
+  catch(e){expCategories=[]}
+}
+function expCatOpts(sel=''){
+  return '<option value="">-- 选择类别 Select Category --</option>'+expCategories.map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('');
+}
+async function rExpenses(el){
+  if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  await loadExpCategories();
+  let h=`<div class="main-header"><h1>💰 日常开支登记</h1><p>Daily Expense Log</p></div>`;
+
+  h+=`<div class="card"><h3>🏷️ 类别管理 Category Management</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+      ${expCategories.length?expCategories.map(c=>`<span class="badge" style="display:inline-flex;align-items:center;gap:6px">${esc(c.name)} <span style="cursor:pointer;color:var(--bad)" onclick="delExpCategory('${c.id}','${esc(c.name)}')">✕</span></span>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无类别 No categories yet</span>'}
+    </div>
+    <div style="display:flex;gap:8px"><input type="text" id="newCatName" placeholder="新类别名称 New category name" style="flex:1;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px">
+    <button class="btn btn-pri btn-sm" onclick="addExpCategory()">➕ 添加类别</button></div>
+    <p style="font-size:.72rem;color:var(--text3);margin-top:8px">登记开支时只能从这里已有的类别里选，要用新类别请先在这里加。To log an expense, pick from categories added here first.</p>
+  </div>`;
+
+  h+=`<div class="card"><h3>➕ 登记一笔 New Entry</h3>
+    <div class="form-row-4" style="margin-top:14px">
+      <div class="fg"><label>日期 Date *</label><input type="date" id="exDate" value="${today()}"></div>
+      <div class="fg"><label>类别 Category *</label><select id="exCat">${expCatOpts()}</select></div>
+      <div class="fg"><label>类型 Type *</label><select id="exType"><option value="expense">支出 Expense</option><option value="income">收入 Income</option></select></div>
+      <div class="fg"><label>金额 Amount *</label><input type="number" step="0.01" id="exAmount" placeholder="0.00"></div>
+    </div>
+    <div class="fg"><label>备注 Note</label><input type="text" id="exNote" placeholder="说明这笔钱是干什么的..."></div>
+    <button class="btn btn-pri" onclick="addExpense()" style="max-width:240px">➕ 登记 Add Entry</button>
+  </div>`;
+
+  h+=`<div class="card"><h3>🔍 筛选 Filter</h3>
+    <div class="form-row-4" style="margin-top:14px">
+      <div class="fg"><label>开始日期 From</label><input type="date" id="fltFrom" value="${expFilter.from}"></div>
+      <div class="fg"><label>结束日期 To</label><input type="date" id="fltTo" value="${expFilter.to}"></div>
+      <div class="fg"><label>类别 Category</label><select id="fltCat">${expCatOpts(expFilter.cat)}</select></div>
+      <div class="fg"><label>关键词 Keyword</label><input type="text" id="fltKw" value="${esc(expFilter.kw)}" placeholder="搜索备注..."></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="applyExpFilter()">🔍 查询 Search</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearExpFilter()">✕ 清空 Clear</button>
+  </div>`;
+
+  h+='<div class="sec-title">流水记录 Ledger</div><div class="card">';
+  let rows;
+  try{rows=await sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:expFilter.from||null,p_date_to:expFilter.to||null,p_category_id:expFilter.cat||null,p_keyword:expFilter.kw||null})}catch(e){rows=null}
+  if(!Array.isArray(rows)){
+    h+='<div style="color:var(--bad);font-size:.85rem;padding:12px 0">⚠️ 无法加载数据，可能是数据库函数尚未配置。Failed to load — database function may not be set up yet.</div>';
+  }else if(rows.length===0){
+    h+='<div style="color:var(--text3);text-align:center;padding:24px">暂无记录 No entries</div>';
+  }else{
+    h+='<table class="score-table"><thead><tr><th>日期</th><th>类别</th><th>备注</th><th>收入</th><th>支出</th><th>剩余</th><th>登记人</th><th>操作</th></tr></thead><tbody>';
+    for(const r of rows){
+      h+=`<tr><td>${r.date}</td><td>${esc(r.category_name||'—')}</td><td style="font-size:.8rem;color:var(--text2)">${esc(r.note||'—')}</td>
+        <td style="color:var(--ok)">${r.income>0?'+'+Number(r.income).toFixed(2):'—'}</td>
+        <td style="color:var(--bad)">${r.expense>0?'-'+Number(r.expense).toFixed(2):'—'}</td>
+        <td><b>${Number(r.running_balance).toFixed(2)}</b></td>
+        <td style="font-size:.78rem">${staffName(r.created_by)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="delExpense('${r.id}')">🗑️</button></td></tr>`;
+    }
+    h+='</tbody></table>';
+  }
+  h+='</div>';
+  el.innerHTML=h;
+}
+function applyExpFilter(){
+  expFilter={from:document.getElementById('fltFrom').value,to:document.getElementById('fltTo').value,cat:document.getElementById('fltCat').value,kw:document.getElementById('fltKw').value.trim()};
+  rExpenses(document.getElementById('mainBody'));
+}
+function clearExpFilter(){expFilter={from:'',to:'',cat:'',kw:''};rExpenses(document.getElementById('mainBody'));}
+async function addExpCategory(){
+  const name=document.getElementById('newCatName').value.trim();
+  if(!name){toast('请输入类别名称');return}
+  const r=await sb.rpc('tks_add_expense_category',{p_user_id:U.id,p_name:name});
+  if(r&&r.success!==false){toast('✅ 已添加类别');rExpenses(document.getElementById('mainBody'));}
+  else toast('❌ '+(r&&r.message||'添加失败'));
+}
+async function delExpCategory(id,name){
+  if(!confirm('删除类别 "'+name+'"？\n如果已有记录用了这个类别，将无法删除。'))return;
+  const r=await sb.rpc('tks_delete_expense_category',{p_user_id:U.id,p_id:id});
+  if(r&&r.success!==false){toast('🗑️ 已删除');rExpenses(document.getElementById('mainBody'));}
+  else toast('❌ '+(r&&r.message||'该类别已有记录使用，无法删除'));
+}
+async function addExpense(){
+  const date=document.getElementById('exDate').value,cat=document.getElementById('exCat').value,
+    type=document.getElementById('exType').value,amount=parseFloat(document.getElementById('exAmount').value),
+    note=document.getElementById('exNote').value.trim();
+  if(!date||!cat){toast('请填写日期和类别');return}
+  if(!amount||amount<=0){toast('请填写有效金额');return}
+  const income=type==='income'?amount:0,expense=type==='expense'?amount:0;
+  const r=await sb.rpc('tks_add_expense',{p_user_id:U.id,p_date:date,p_category_id:cat,p_note:note||null,p_income:income,p_expense:expense});
+  if(r&&r.success!==false){toast('✅ 已登记');document.getElementById('exAmount').value='';document.getElementById('exNote').value='';rExpenses(document.getElementById('mainBody'));}
+  else toast('❌ '+(r&&r.message||'登记失败'));
+}
+async function delExpense(id){
+  if(!confirm('删除这条记录？删除后剩余金额会自动重新计算。\nDelete this entry? Balance will recalculate automatically.'))return;
+  const r=await sb.rpc('tks_delete_expense',{p_user_id:U.id,p_id:id});
+  if(r&&r.success!==false){toast('🗑️ 已删除');rExpenses(document.getElementById('mainBody'));}
+  else toast('❌ '+(r&&r.message||'删除失败'));
+}
+
+/* ---- ATTENDANCE ---- */
+const ATT_STATUS=[
+  {v:'present',zh:'正常出勤',en:'Present'},
+  {v:'late',zh:'迟到',en:'Late'},
+  {v:'leave',zh:'请假',en:'On Leave'},
+  {v:'missed_punch',zh:'漏打卡补录',en:'Missed Punch (backfill)'},
+];
+let attFilter={from:'',to:'',staff:''};
+function attStatusLabel(v){const s=ATT_STATUS.find(x=>x.v===v);return s?s.zh+' '+s.en:v}
+async function rAttendance(el){
+  if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 打卡机之外的人工补录 Manual backup for the time clock</p></div>`;
+  h+=`<div class="card"><h3>➕ 登记 New Entry</h3>
+    <div class="form-row-4" style="margin-top:14px">
+      <div class="fg"><label>日期 Date *</label><input type="date" id="atDate" value="${today()}"></div>
+      <div class="fg"><label>员工 Staff *</label><select id="atStaff">${staffOpts()}</select></div>
+      <div class="fg"><label>状态 Status *</label><select id="atStatus">${ATT_STATUS.map(s=>'<option value="'+s.v+'">'+s.zh+' '+s.en+'</option>').join('')}</select></div>
+      <div class="fg"><label>备注 Note</label><input type="text" id="atNote" placeholder="情况说明..."></div>
+    </div>
+    <button class="btn btn-pri" onclick="addAttendance()" style="max-width:240px">➕ 登记 Add Entry</button>
+  </div>`;
+  h+=`<div class="card"><h3>🔍 筛选 Filter</h3>
+    <div class="form-row-3" style="margin-top:14px">
+      <div class="fg"><label>开始日期 From</label><input type="date" id="atFltFrom" value="${attFilter.from}"></div>
+      <div class="fg"><label>结束日期 To</label><input type="date" id="atFltTo" value="${attFilter.to}"></div>
+      <div class="fg"><label>员工 Staff</label><select id="atFltStaff">${staffOpts(attFilter.staff)}</select></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="applyAttFilter()">🔍 查询 Search</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearAttFilter()">✕ 清空 Clear</button>
+  </div>`;
+  h+='<div class="sec-title">登记记录 Records</div><div class="card">';
+  let q='order=date.desc,created_at.desc&limit=500';
+  if(attFilter.from)q+='&date=gte.'+attFilter.from;
+  if(attFilter.to)q+='&date=lte.'+attFilter.to;
+  if(attFilter.staff)q+='&staff_id=eq.'+attFilter.staff;
+  let rows=await sb.get('tks_attendance',q);
+  if(!Array.isArray(rows))rows=[];
+  if(rows.length===0){
+    h+='<div style="color:var(--text3);text-align:center;padding:24px">暂无记录 No entries</div>';
+  }else{
+    h+='<table class="score-table"><thead><tr><th>日期</th><th>员工</th><th>状态</th><th>备注</th><th>登记人</th><th>操作</th></tr></thead><tbody>';
+    for(const r of rows){
+      h+=`<tr><td>${r.date}</td><td><b>${staffName(r.staff_id)}</b></td><td>${attStatusLabel(r.status)}</td>
+        <td style="font-size:.8rem;color:var(--text2)">${esc(r.note||'—')}</td><td style="font-size:.78rem">${staffName(r.recorded_by)}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="delAttendance('${r.id}')">🗑️</button></td></tr>`;
+    }
+    h+='</tbody></table>';
+  }
+  h+='</div>';
+  el.innerHTML=h;
+}
+function applyAttFilter(){
+  attFilter={from:document.getElementById('atFltFrom').value,to:document.getElementById('atFltTo').value,staff:document.getElementById('atFltStaff').value};
+  rAttendance(document.getElementById('mainBody'));
+}
+function clearAttFilter(){attFilter={from:'',to:'',staff:''};rAttendance(document.getElementById('mainBody'));}
+async function addAttendance(){
+  const date=document.getElementById('atDate').value,staff=document.getElementById('atStaff').value,
+    status=document.getElementById('atStatus').value,note=document.getElementById('atNote').value.trim();
+  if(!date||!staff){toast('请选择日期和员工');return}
+  const r=await sb.post('tks_attendance',{date,staff_id:staff,status,note:note||null,recorded_by:U.id});
+  if(Array.isArray(r)&&r.length>0){toast('✅ 已登记');document.getElementById('atNote').value='';rAttendance(document.getElementById('mainBody'));}
+  else toast('❌ 登记失败: '+(r.message||'请检查数据表是否已创建'));
+}
+async function delAttendance(id){
+  if(!confirm('删除这条考勤记录？'))return;
+  await sb.del('tks_attendance',{id});rAttendance(document.getElementById('mainBody'));toast('🗑️ 已删除');
 }
 
 /* ---- TASKS ---- */
