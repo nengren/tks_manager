@@ -764,10 +764,17 @@ async function delPassword(id,name){
 }
 
 /* ---- EXPENSES ---- */
-let expCategories=[],expFilter={from:'',to:'',cat:'',kw:''},expPendingImg=null;
+let expCategories=[],expRelatedPersons=[],expFilter={from:'',to:'',cat:'',kw:''},expPendingImg=null;
 async function loadExpCategories(){
   try{const r=await sb.rpc('tks_get_expense_categories',{p_user_id:U.id});expCategories=Array.isArray(r)?r:[]}
   catch(e){expCategories=[]}
+}
+async function loadRelatedPersons(){
+  try{const r=await sb.rpc('tks_get_related_persons',{p_user_id:U.id});expRelatedPersons=Array.isArray(r)?r:[]}
+  catch(e){expRelatedPersons=[]}
+}
+function relatedOpts(sel=''){
+  return '<option value="">-- 关联人 --</option>'+expRelatedPersons.map(p=>'<option value="'+esc(p.name)+'"'+(p.name===sel?' selected':'')+'>'+esc(p.name)+'</option>').join('');
 }
 function expCatOpts(sel=''){
   return '<option value="">-- 类别 Category --</option>'+expCategories.map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('');
@@ -775,14 +782,17 @@ function expCatOpts(sel=''){
 async function rExpenses(el){
   if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   await loadExpCategories();
+  await loadRelatedPersons();
   const isAdmin=U.role==='admin';
   let h=`<div class="main-header"><h1>💰 日常开支登记</h1><p>Daily Expense Log &middot; Sheet View</p></div>`;
 
-  // 期初余额
-  let opening=0;
+  // 期初余额 + 实时余额
+  let opening=0,current=0;
   try{const r=await sb.rpc('tks_get_opening_balance',{p_user_id:U.id});opening=typeof r==='number'?r:0}catch(e){}
-  h+=`<div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+  try{const r=await sb.rpc('tks_get_current_balance',{p_user_id:U.id});current=typeof r==='number'?r:opening}catch(e){current=opening}
+  h+=`<div class="card" style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
     <div><div class="sub-label">期初余额 Opening Balance</div><div style="font-size:1.3rem;font-weight:700" id="openingDisplay">${opening.toFixed(2)}</div></div>
+    <div><div class="sub-label">实时余额 Current Balance</div><div style="font-size:1.9rem;font-weight:800;color:var(--bad)">${current.toFixed(2)}</div></div>
     ${isAdmin?`<div style="display:flex;gap:8px;align-items:flex-end"><input type="number" step="0.01" id="openingInput" placeholder="新的期初余额" style="width:160px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px"><button class="btn btn-ghost btn-sm" onclick="setOpeningBalance()">💾 设置</button></div><span style="font-size:.72rem;color:var(--text3)">只有管理员能改 Admin only</span>`:''}
   </div>`;
 
@@ -795,6 +805,15 @@ async function rExpenses(el){
     <button class="btn btn-ghost btn-sm" onclick="addExpCategory()">➕ 添加</button></div>
   </div>`;
 
+  // 常用关联人管理
+  h+=`<div class="card"><h3>👤 常用关联人 Related Persons</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+      ${expRelatedPersons.length?expRelatedPersons.map(p=>`<span class="badge" style="display:inline-flex;align-items:center;gap:6px">${esc(p.name)} <span style="cursor:pointer;color:var(--bad)" onclick="delRelatedPerson('${p.id}','${esc(p.name)}')">✕</span></span>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无，先在下面添加</span>'}
+    </div>
+    <div style="display:flex;gap:8px"><input type="text" id="newRelatedName" placeholder="姓名" style="flex:1;max-width:260px;padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:.82rem">
+    <button class="btn btn-ghost btn-sm" onclick="addRelatedPerson()">➕ 添加</button></div>
+  </div>`;
+
   // 新增一笔（清晰的表单，字段顺序：日期→类别→收入/支出→金额→关联人→凭证；登记人和审核不需要手动填，自动/单独处理）
   h+=`<div class="card"><h3>➕ 登记一笔 New Entry</h3>
     <div class="form-row-4" style="margin-top:14px">
@@ -804,10 +823,10 @@ async function rExpenses(el){
       <div class="fg"><label>金额 Amount *</label><input type="number" step="0.01" id="exAmount" placeholder="0.00"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>关联人 Related Person（这笔钱给谁/谁给的）</label><input type="text" id="exRelated" placeholder="例如：Noah"></div>
+      <div class="fg"><label>关联人 Related Person（这笔钱给谁/谁给的）</label><select id="exRelated">${relatedOpts()}</select></div>
       <div class="fg"><label>凭证 Photo（可选，不是每笔都要传）</label><input type="file" id="exPhoto" accept="image/*" onchange="stagePhoto(this)"></div>
     </div>
-    <div class="fg"><label>备注 Note</label><input type="text" id="exNote" placeholder="说明..."></div>
+    <div class="fg"><label>备注 Note</label><input type="text" id="exNote" placeholder="说明..." autocomplete="off"></div>
     <button class="btn btn-pri" onclick="addExpense()" style="max-width:200px">➕ 登记</button>
   </div>`;
 
@@ -877,6 +896,19 @@ async function delExpCategory(id,name){
   const r=await sb.rpc('tks_delete_expense_category',{p_user_id:U.id,p_id:id});
   if(r&&r.success!==false){toast('🗑️ 已删除');rExpenses(document.getElementById('mainBody'));}
   else toast('❌ '+(r&&r.message||'该类别已有记录使用，无法删除'));
+}
+async function addRelatedPerson(){
+  const name=document.getElementById('newRelatedName').value.trim();
+  if(!name){toast('请输入姓名');return}
+  const r=await sb.rpc('tks_add_related_person',{p_user_id:U.id,p_name:name});
+  if(r&&r.success!==false){toast('✅ 已添加');rExpenses(document.getElementById('mainBody'));}
+  else toast('❌ '+(r&&r.message||'添加失败'));
+}
+async function delRelatedPerson(id,name){
+  if(!confirm('删除关联人 "'+name+'"？（已经登记过的旧记录不会受影响）'))return;
+  const r=await sb.rpc('tks_delete_related_person',{p_user_id:U.id,p_id:id});
+  if(r&&r.success!==false){toast('🗑️ 已删除');rExpenses(document.getElementById('mainBody'));}
+  else toast('❌ '+(r&&r.message||'删除失败'));
 }
 async function stagePhoto(inp){
   if(!inp.files||!inp.files[0]){expPendingImg=null;return}
