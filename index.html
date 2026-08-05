@@ -336,7 +336,7 @@ const RESULTS=[
   {v:'replaced',zh:'已补发',en:'Replaced'}
 ];
 
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
 const sColor=v=>v>=4?'sv-good':v>=3?'sv-mid':'sv-bad';
 const pClass=(d,t)=>d===t?'p-full':d>0?'p-partial':'p-none';
 const issueTag=t=>{const cls={wrong_item:'wrong',damaged:'damaged',missing_item:'missing',defective:'defective',other:'other'};const i=ISSUE_TYPES.find(x=>x.v===t);return '<span class="tag tag-'+(cls[t]||'other')+'">'+(i?i.zh+' '+i.en:t)+'</span>'};
@@ -793,6 +793,22 @@ async function rExpenses(el){
     <button class="btn btn-ghost btn-sm" onclick="addExpCategory()">➕ 添加</button></div>
   </div>`;
 
+  // 新增一笔（清晰的表单，字段顺序：日期→类别→收入/支出→金额→关联人→凭证；登记人和审核不需要手动填，自动/单独处理）
+  h+=`<div class="card"><h3>➕ 登记一笔 New Entry</h3>
+    <div class="form-row-4" style="margin-top:14px">
+      <div class="fg"><label>日期 Date *</label><input type="date" id="exDate" value="${today()}"></div>
+      <div class="fg"><label>类别 Category *</label><select id="exCat">${expCatOpts()}</select></div>
+      <div class="fg"><label>收入/支出 Type *</label><select id="exType"><option value="expense">支出 Expense</option><option value="income">收入 Income</option></select></div>
+      <div class="fg"><label>金额 Amount *</label><input type="number" step="0.01" id="exAmount" placeholder="0.00"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>关联人 Related Person（这笔钱给谁/谁给的）</label><input type="text" id="exRelated" placeholder="例如：Noah"></div>
+      <div class="fg"><label>凭证 Photo（可选，不是每笔都要传）</label><input type="file" id="exPhoto" accept="image/*" onchange="stagePhoto(this)"></div>
+    </div>
+    <div class="fg"><label>备注 Note</label><input type="text" id="exNote" placeholder="说明..."></div>
+    <button class="btn btn-pri" onclick="addExpense()" style="max-width:200px">➕ 登记</button>
+  </div>`;
+
   // 筛选
   h+=`<div class="card">
     <div class="form-row-4">
@@ -806,39 +822,27 @@ async function rExpenses(el){
   </div>`;
 
   h+='<div class="card" style="overflow-x:auto"><table class="sheet-table"><thead><tr>'+
-    '<th>DATE</th><th>NOTE</th><th>INCOME</th><th>OUTCOME</th><th>BAL</th><th>关联人 IMAGE</th><th>凭证</th><th>登记人</th><th>审核</th><th></th></tr></thead><tbody>';
-
-  // 新增行（表格第一行，就地录入，贴近你们习惯的表格操作）
-  h+=`<tr>
-    <td><input type="date" id="exDate" value="${today()}" style="width:120px"></td>
-    <td><input type="text" id="exNote" placeholder="备注" style="width:140px"></td>
-    <td colspan="2"><select id="exType" style="width:70px;display:inline-block"><option value="expense">支出</option><option value="income">收入</option></select>
-      <input type="number" step="0.01" id="exAmount" placeholder="金额" style="width:80px;display:inline-block"></td>
-    <td>—</td>
-    <td><input type="text" id="exRelated" placeholder="姓名" style="width:90px"></td>
-    <td><input type="file" id="exPhoto" accept="image/*" style="width:90px;font-size:.7rem" onchange="stagePhoto(this)"></td>
-    <td colspan="2"><select id="exCat" style="width:120px">${expCatOpts()}</select></td>
-    <td><button class="btn btn-pri btn-sm" onclick="addExpense()">➕</button></td>
-  </tr>`;
+    '<th>日期</th><th>类别</th><th>收入</th><th>支出</th><th>关联人</th><th>登记人</th><th>凭证</th><th>审核</th><th>余额</th><th>备注</th><th></th></tr></thead><tbody>';
 
   let rows;
   try{rows=await sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:expFilter.from||null,p_date_to:expFilter.to||null,p_category_id:expFilter.cat||null,p_keyword:expFilter.kw||null})}catch(e){rows=null}
   if(!Array.isArray(rows)){
-    h+='<tr><td colspan="10" style="color:var(--bad)">⚠️ 无法加载，数据库函数可能尚未更新</td></tr>';
+    h+='<tr><td colspan="11" style="color:var(--bad)">⚠️ 无法加载，数据库函数可能尚未更新（请确认 phase2b 迁移已执行）</td></tr>';
   }else if(rows.length===0){
-    h+='<tr><td colspan="10" style="color:var(--text3);text-align:center">暂无记录</td></tr>';
+    h+='<tr><td colspan="11" style="color:var(--text3);text-align:center">暂无记录</td></tr>';
   }else{
     for(const r of rows){
       h+=`<tr class="${r.approved?'exp-approved':''}">
         <td>${r.date}</td>
-        <td>${esc(r.note||'—')}</td>
+        <td>${esc(r.category_name||'—')}</td>
         <td style="color:var(--ok)">${r.income>0?'+'+Number(r.income).toFixed(2):''}</td>
         <td style="color:var(--bad)">${r.expense>0?'-'+Number(r.expense).toFixed(2):''}</td>
-        <td><b>${Number(r.running_balance).toFixed(2)}</b></td>
         <td>${esc(r.related_person||'—')}</td>
+        <td>${staffName(r.created_by)}</td>
         <td>${r.image_url?`<img class="exp-thumb" src="${r.image_url}" onclick="window.open('${r.image_url}','_blank')">`:'—'}</td>
-        <td>${esc(r.category_name||'—')} · ${staffName(r.created_by)}</td>
         <td>${isAdmin?`<button class="btn ${r.approved?'btn-ok':'btn-ghost'} btn-sm" onclick="toggleApprove('${r.id}',${!r.approved})">${r.approved?'✅':'待审'}</button>`:(r.approved?'✅':'—')}</td>
+        <td><b>${Number(r.running_balance).toFixed(2)}</b></td>
+        <td style="color:var(--text2)">${esc(r.note||'—')}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="delExpense('${r.id}')">🗑️</button></td>
       </tr>`;
     }
@@ -1003,11 +1007,11 @@ async function addWorker(){
   else toast('❌ 添加失败: '+(r.message||'请检查数据表是否已创建'));
 }
 async function bulkAddWorkers(){
-  const text=document.getElementById('workerBulk').value;
-  const names=[...new Set(text.split('\n').map(s=>s.trim()).filter(Boolean))];
-  if(names.length===0){toast('请输入至少一个姓名');return}
+  const raw=document.getElementById('workerBulk').value||'';
+  const names=[...new Set(raw.split(/[\n\r,\t]+/).map(s=>s.trim()).filter(Boolean))];
+  if(names.length===0){toast('请输入至少一个姓名（一行一个，或用逗号分隔）');return}
   const r=await sb.post('tks_workers',names.map(n=>({name:n,created_by:U.id})));
-  if(Array.isArray(r)){toast('✅ 已添加 '+r.length+' 人');rAttendance(document.getElementById('mainBody'));}
+  if(Array.isArray(r)){toast('✅ 已添加 '+r.length+' 人');document.getElementById('workerBulk').value='';rAttendance(document.getElementById('mainBody'));}
   else toast('❌ 添加失败: '+(r.message||'请检查数据表是否已创建'));
 }
 async function delWorker(id,name){
