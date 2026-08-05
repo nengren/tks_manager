@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v8-worker-reorder-error-surface -->
+<!-- BUILD-VERSION: 2026-08-05-v9-drag-reorder -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -146,6 +146,10 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .att-grid select{font-size:.75rem;padding:2px;width:100%}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.worker-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f1f5f9;cursor:grab;border-radius:6px}
+.worker-row:active{cursor:grabbing}
+.worker-row.worker-drag-over{background:var(--pri-l);border:1px dashed var(--pri)}
+.worker-drag-handle{color:var(--text3);font-size:1rem;cursor:grab}
 .calc-box{background:var(--pri-l);border-radius:8px;padding:12px 16px;font-size:.82rem;color:var(--pri-d);margin:12px 0}
 .detail-toggle{font-size:.8rem;color:var(--pri);cursor:pointer;margin:10px 0;display:inline-block}
 .detail-toggle:hover{text-decoration:underline}
@@ -963,14 +967,13 @@ async function rAttendance(el){
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
   let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记缺勤例外，员工花名册独立维护，不需要登录账号</p></div>`;
 
-  // 员工花名册管理（带顺序，跟打卡机顺序一致，可以手动调整）
-  h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length}) · 顺序按打卡机来，可用 ↑↓ 调整</h3>
-    <div style="max-height:280px;overflow-y:auto;margin:10px 0">
-    ${workers.length?workers.map((w,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9">
+  // 员工花名册管理（拖拽排序，跟打卡机顺序一致）
+  h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length}) · 直接拖动名字调整顺序 Drag to reorder</h3>
+    <div style="max-height:320px;overflow-y:auto;margin:10px 0" id="workerList">
+    ${workers.length?workers.map((w,i)=>`<div class="worker-row" draggable="true" data-id="${w.id}" ondragstart="workerDragStart(event)" ondragover="workerDragOver(event)" ondragleave="workerDragLeave(event)" ondrop="workerDrop(event)" ondragend="workerDragEnd(event)">
+        <span class="worker-drag-handle">⠿</span>
         <span style="color:var(--text3);font-size:.72rem;width:24px">${i+1}</span>
         <span style="flex:1">${esc(w.name)}</span>
-        <button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="moveWorker('${w.id}',-1)" ${i===0?'disabled':''}>↑</button>
-        <button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="moveWorker('${w.id}',1)" ${i===workers.length-1?'disabled':''}>↓</button>
         <span style="cursor:pointer;color:var(--bad);padding:0 6px" onclick="delWorker('${w.id}','${esc(w.name)}')">✕</span>
       </div>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无员工，先在下面添加</span>'}
     </div>
@@ -1028,18 +1031,23 @@ function customAttCell(workerId,date){
   if(isNaN(n)||n<0){toast('请输入有效的天数');return}
   setAttCell(workerId,date,String(n));
 }
-async function moveWorker(id,dir){
-  const idx=workers.findIndex(w=>w.id===id);
-  if(idx<0)return;
-  const swapIdx=idx+dir;
-  if(swapIdx<0||swapIdx>=workers.length)return;
-  const a=workers[idx],b=workers[swapIdx];
-  const soA=a.sort_order,soB=b.sort_order;
-  // 如果两人 sort_order 相同（比如都是默认0），先给它们分配不同的值，确保能真正交换顺序
-  const finalA=soA===soB?idx:soA, finalB=soA===soB?swapIdx:soB;
-  await sb.patch('tks_workers',{id:a.id},{sort_order:finalB});
-  await sb.patch('tks_workers',{id:b.id},{sort_order:finalA});
-  rAttendance(document.getElementById('mainBody'));
+let dragWorkerId=null;
+function workerDragStart(e){dragWorkerId=e.currentTarget.dataset.id;e.dataTransfer.effectAllowed='move';}
+function workerDragOver(e){e.preventDefault();e.currentTarget.classList.add('worker-drag-over');}
+function workerDragLeave(e){e.currentTarget.classList.remove('worker-drag-over');}
+function workerDragEnd(e){document.querySelectorAll('.worker-drag-over').forEach(x=>x.classList.remove('worker-drag-over'));}
+async function workerDrop(e){
+  e.preventDefault();
+  const targetId=e.currentTarget.dataset.id;
+  e.currentTarget.classList.remove('worker-drag-over');
+  if(!dragWorkerId||dragWorkerId===targetId)return;
+  const fromIdx=workers.findIndex(w=>w.id===dragWorkerId);
+  const toIdx=workers.findIndex(w=>w.id===targetId);
+  if(fromIdx<0||toIdx<0)return;
+  const [moved]=workers.splice(fromIdx,1);
+  workers.splice(toIdx,0,moved);
+  rAttendance(document.getElementById('mainBody')); // 先立刻刷新界面，感觉更跟手
+  await Promise.all(workers.map((w,i)=>sb.patch('tks_workers',{id:w.id},{sort_order:i*10})));
 }
 async function setAttCell(workerId,date,val){
   try{
