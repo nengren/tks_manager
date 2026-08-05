@@ -827,9 +827,10 @@ async function rExpenses(el){
     '<th>日期</th><th>类别</th><th>收入</th><th>支出</th><th>关联人</th><th>登记人</th><th>凭证</th><th>审核</th><th>余额</th><th>备注</th><th></th></tr></thead><tbody>';
 
   let rows;
-  try{rows=await sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:expFilter.from||null,p_date_to:expFilter.to||null,p_category_id:expFilter.cat||null,p_keyword:expFilter.kw||null})}catch(e){rows=null}
+  try{rows=await sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:expFilter.from||null,p_date_to:expFilter.to||null,p_category_id:expFilter.cat||null,p_keyword:expFilter.kw||null})}catch(e){rows={message:'network error: '+e.message}}
   if(!Array.isArray(rows)){
-    h+='<tr><td colspan="11" style="color:var(--bad)">⚠️ 无法加载，数据库函数可能尚未更新（请确认 phase2b 迁移已执行）</td></tr>';
+    const errText=esc((rows&&(rows.message||rows.error_description||rows.hint||rows.details))||JSON.stringify(rows));
+    h+='<tr><td colspan="11" style="color:var(--bad)">⚠️ 无法加载 — 数据库返回：<br><code style="font-size:.75rem;white-space:pre-wrap">'+errText+'</code></td></tr>';
   }else if(rows.length===0){
     h+='<tr><td colspan="11" style="color:var(--text3);text-align:center">暂无记录</td></tr>';
   }else{
