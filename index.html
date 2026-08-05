@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v9-drag-reorder -->
+<!-- BUILD-VERSION: 2026-08-05-v10-parttime-bulkfill -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -150,6 +150,7 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .worker-row:active{cursor:grabbing}
 .worker-row.worker-drag-over{background:var(--pri-l);border:1px dashed var(--pri)}
 .worker-drag-handle{color:var(--text3);font-size:1rem;cursor:grab}
+.att-cell.att-selected{background:#fef9c3;outline:2px solid #eab308}
 .calc-box{background:var(--pri-l);border-radius:8px;padding:12px 16px;font-size:.82rem;color:var(--pri-d);margin:12px 0}
 .detail-toggle{font-size:.8rem;color:var(--pri);cursor:pointer;margin:10px 0;display:inline-block}
 .detail-toggle:hover{text-decoration:underline}
@@ -954,7 +955,7 @@ async function delExpense(id){
 
 /* ---- ATTENDANCE ---- */
 const ATT_PRESETS=[{v:'',label:'正常 Normal'},{v:'0.25',label:'缺0.25天 -0.25d'},{v:'0.5',label:'缺0.5天 -0.5d'},{v:'1',label:'缺1天 -1d'}];
-let workers=[],attWeekStart=mondayOf(today());
+let workers=[],attWeekStart=mondayOf(today()),attSelected=new Set();
 function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
 function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return fmtDate(dt);}
 async function loadWorkers(){
@@ -965,7 +966,7 @@ async function rAttendance(el){
   if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   await loadWorkers();
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
-  let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记缺勤例外，员工花名册独立维护，不需要登录账号</p></div>`;
+  let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记例外；正式员工填缺勤天数，兼职员工可直接填当天工资金额</p></div>`;
 
   // 员工花名册管理（拖拽排序，跟打卡机顺序一致）
   h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length}) · 直接拖动名字调整顺序 Drag to reorder</h3>
@@ -973,7 +974,8 @@ async function rAttendance(el){
     ${workers.length?workers.map((w,i)=>`<div class="worker-row" draggable="true" data-id="${w.id}" ondragstart="workerDragStart(event)" ondragover="workerDragOver(event)" ondragleave="workerDragLeave(event)" ondrop="workerDrop(event)" ondragend="workerDragEnd(event)">
         <span class="worker-drag-handle">⠿</span>
         <span style="color:var(--text3);font-size:.72rem;width:24px">${i+1}</span>
-        <span style="flex:1">${esc(w.name)}</span>
+        <span style="flex:1">${esc(w.name)}${w.is_parttime?' <span class=\"badge badge-secretary\" style=\"font-size:.65rem\">兼职 PT</span>':''}</span>
+        <label style="font-size:.7rem;color:var(--text3);display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" ${w.is_parttime?'checked':''} onchange="event.stopPropagation();toggleParttime('${w.id}',this.checked)">兼职</label>
         <span style="cursor:pointer;color:var(--bad);padding:0 6px" onclick="delWorker('${w.id}','${esc(w.name)}')">✕</span>
       </div>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无员工，先在下面添加</span>'}
     </div>
@@ -991,6 +993,15 @@ async function rAttendance(el){
     <button class="btn btn-ghost btn-sm" onclick="shiftAttWeek(7)">下一周 →</button>
   </div>`;
 
+  // 批量填入工具条：先勾选一片格子（Shift/Cmd+点击），填一个数，一键套用到所有选中的格子——比复制粘贴更快更不容易错
+  h+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <b style="font-size:.82rem">🖊️ 批量填入 Bulk Fill</b>
+    <span style="font-size:.75rem;color:var(--text3)">Shift+点击 多选格子 → 填数字 → 套用到全部选中</span>
+    <input type="number" step="0.01" id="bulkFillVal" placeholder="数值" style="width:100px">
+    <button class="btn btn-pri btn-sm" onclick="applyBulkFill()">✅ 套用到已选 (${attSelected.size})</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearAttSelection()">✕ 清空所选</button>
+  </div>`;
+
   // 网格
   let rows=[];
   try{rows=await sb.get('tks_attendance','date=gte.'+weekDates[0]+'&date=lte.'+weekDates[6])}catch(e){}
@@ -1004,20 +1015,47 @@ async function rAttendance(el){
     h+=`<tr><td colspan="8" style="text-align:center;color:var(--text3)">先在上面加员工花名册</td></tr>`;
   }else{
     for(const w of workers){
-      h+=`<tr><td class="att-name">${esc(w.name)}</td>`;
+      h+=`<tr><td class="att-name">${esc(w.name)}${w.is_parttime?' 🔹':''}</td>`;
       for(const d of weekDates){
         const key=w.id+'_'+d;
         const val=map[key];
-        h+=`<td class="att-cell" id="cell_${key}" onclick="openAttCell('${w.id}','${d}')">${val?('-'+val+'d'):''}</td>`;
+        const disp=val?(w.is_parttime?('₱'+val):('-'+val+'d')):'';
+        const sel=attSelected.has(key)?' att-selected':'';
+        h+=`<td class="att-cell${sel}" id="cell_${key}" onclick="attCellClick(event,'${w.id}','${d}')">${disp}</td>`;
       }
       h+='</tr>';
     }
   }
   h+='</tbody></table></div>';
-  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。点击格子，一键标记缺勤天数。Blank = normal. Click a cell for quick preset buttons.</p>';
+  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。单击格子 = 快捷标记单个；Shift+点击 = 多选，配合上面"批量填入"一次填一片。🔹 = 兼职员工，格子里直接填当天工资金额。</p>';
   el.innerHTML=h;
 }
-function shiftAttWeek(n){attWeekStart=addDays(attWeekStart,n);rAttendance(document.getElementById('mainBody'));}
+function shiftAttWeek(n){attWeekStart=addDays(attWeekStart,n);attSelected.clear();rAttendance(document.getElementById('mainBody'));}
+function attCellClick(e,workerId,date){
+  const key=workerId+'_'+date;
+  if(e.shiftKey||e.metaKey||e.ctrlKey){
+    if(attSelected.has(key))attSelected.delete(key);else attSelected.add(key);
+    rAttendance(document.getElementById('mainBody'));
+    return;
+  }
+  openAttCell(workerId,date);
+}
+function clearAttSelection(){attSelected.clear();rAttendance(document.getElementById('mainBody'));}
+async function applyBulkFill(){
+  const v=document.getElementById('bulkFillVal').value;
+  if(v===''){toast('请先填一个数值');return}
+  const n=parseFloat(v);
+  if(isNaN(n)){toast('请输入有效数字');return}
+  if(attSelected.size===0){toast('请先 Shift+点击 选几个格子');return}
+  const keys=[...attSelected];
+  await Promise.all(keys.map(k=>{
+    const idx=k.lastIndexOf('_');
+    return setAttCell(k.slice(0,idx),k.slice(idx+1),String(n),true);
+  }));
+  attSelected.clear();
+  toast('✅ 已套用到 '+keys.length+' 个格子');
+  rAttendance(document.getElementById('mainBody'));
+}
 function openAttCell(workerId,date){
   const cell=document.getElementById('cell_'+workerId+'_'+date);
   if(!cell)return;
@@ -1025,10 +1063,10 @@ function openAttCell(workerId,date){
     `<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();customAttCell('${workerId}','${date}')">自定义 Custom</button>`;
 }
 function customAttCell(workerId,date){
-  const v=prompt('缺勤天数（比如 0.25 / 0.5 / 0.75 / 1）：');
+  const v=prompt('填一个数字（正式员工=缺勤天数，比如 0.5；兼职员工=当天工资金额，比如 600）：');
   if(v===null)return;
   const n=parseFloat(v);
-  if(isNaN(n)||n<0){toast('请输入有效的天数');return}
+  if(isNaN(n)||n<0){toast('请输入有效的数字');return}
   setAttCell(workerId,date,String(n));
 }
 let dragWorkerId=null;
@@ -1049,7 +1087,11 @@ async function workerDrop(e){
   rAttendance(document.getElementById('mainBody')); // 先立刻刷新界面，感觉更跟手
   await Promise.all(workers.map((w,i)=>sb.patch('tks_workers',{id:w.id},{sort_order:i*10})));
 }
-async function setAttCell(workerId,date,val){
+async function toggleParttime(id,checked){
+  await sb.patch('tks_workers',{id},{is_parttime:checked});
+  rAttendance(document.getElementById('mainBody'));
+}
+async function setAttCell(workerId,date,val,silent){
   try{
     let r;
     if(!val||parseFloat(val)===0){
@@ -1062,7 +1104,7 @@ async function setAttCell(workerId,date,val){
     }
     if(!r.ok){const t=await r.text();toast('❌ 保存失败: '+t);return}
   }catch(e){toast('❌ 网络错误: '+e.message);return}
-  rAttendance(document.getElementById('mainBody'));
+  if(!silent)rAttendance(document.getElementById('mainBody'));
 }
 async function addWorker(){
   const name=document.getElementById('newWorkerName').value.trim();
