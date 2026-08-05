@@ -338,7 +338,8 @@ const RESULTS=[
   {v:'replaced',zh:'已补发',en:'Replaced'}
 ];
 
-const today=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
+function fmtDate(dt){const y=dt.getFullYear(),m=String(dt.getMonth()+1).padStart(2,'0'),d=String(dt.getDate()).padStart(2,'0');return y+'-'+m+'-'+d;}
+const today=()=>fmtDate(new Date());
 const sColor=v=>v>=4?'sv-good':v>=3?'sv-mid':'sv-bad';
 const pClass=(d,t)=>d===t?'p-full':d>0?'p-partial':'p-none';
 const issueTag=t=>{const cls={wrong_item:'wrong',damaged:'damaged',missing_item:'missing',defective:'defective',other:'other'};const i=ISSUE_TYPES.find(x=>x.v===t);return '<span class="tag tag-'+(cls[t]||'other')+'">'+(i?i.zh+' '+i.en:t)+'</span>'};
@@ -947,18 +948,10 @@ async function delExpense(id){
 }
 
 /* ---- ATTENDANCE ---- */
-const ATT_STATUS=[
-  {v:'',zh:'（正常）',en:'Normal'},
-  {v:'absent',zh:'缺勤',en:'Absent'},
-  {v:'halfday',zh:'半天',en:'Half Day'},
-  {v:'halfrest',zh:'半天休息',en:'Half Rest'},
-  {v:'restday',zh:'休息日',en:'Rest Day'},
-  {v:'late',zh:'迟到',en:'Late'},
-];
-function attLabel(v){const s=ATT_STATUS.find(x=>x.v===v);return s?s.zh:v}
+const ATT_PRESETS=[{v:'',label:'正常'},{v:'0.25',label:'缺0.25天'},{v:'0.5',label:'缺0.5天'},{v:'1',label:'缺1天'}];
 let workers=[],attWeekStart=mondayOf(today());
-function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return dt.toISOString().slice(0,10);}
-function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return dt.toISOString().slice(0,10);}
+function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
+function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return fmtDate(dt);}
 async function loadWorkers(){
   const r=await sb.get('tks_workers','is_active=eq.true&order=sort_order,name');
   workers=Array.isArray(r)?r:[];
@@ -967,7 +960,7 @@ async function rAttendance(el){
   if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   await loadWorkers();
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
-  let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 打卡机之外的人工补录，员工花名册独立维护，不需要登录账号</p></div>`;
+  let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记缺勤例外，员工花名册独立维护，不需要登录账号</p></div>`;
 
   // 员工花名册管理
   h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length})</h3>
@@ -993,7 +986,7 @@ async function rAttendance(el){
   try{rows=await sb.get('tks_attendance','date=gte.'+weekDates[0]+'&date=lte.'+weekDates[6])}catch(e){}
   if(!Array.isArray(rows))rows=[];
   const map={};
-  rows.forEach(r=>{map[r.worker_id+'_'+r.date]=r.status;});
+  rows.forEach(r=>{map[r.worker_id+'_'+r.date]=r.days_absent;});
 
   h+='<div class="card att-grid-wrap"><table class="att-grid"><thead><tr><th>员工 / 日期</th>'+
     weekDates.map(d=>`<th>${d.slice(5)}<br>${['日','一','二','三','四','五','六'][new Date(d+'T00:00:00').getDay()]}</th>`).join('')+'</tr></thead><tbody>';
@@ -1004,32 +997,37 @@ async function rAttendance(el){
       h+=`<tr><td class="att-name">${esc(w.name)}</td>`;
       for(const d of weekDates){
         const key=w.id+'_'+d;
-        const val=map[key]||'';
-        h+=`<td class="att-cell" id="cell_${key}" onclick="openAttCell('${w.id}','${d}')">${val?attLabel(val):''}</td>`;
+        const val=map[key];
+        h+=`<td class="att-cell" id="cell_${key}" onclick="openAttCell('${w.id}','${d}')">${val?('缺'+val+'天'):''}</td>`;
       }
       h+='</tr>';
     }
   }
   h+='</tbody></table></div>';
-  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。点击格子标记缺勤/请假/半天等例外情况。Blank = normal. Click a cell to mark an exception.</p>';
+  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。点击格子，一键标记缺勤天数。Blank = normal. Click a cell for quick preset buttons.</p>';
   el.innerHTML=h;
 }
 function shiftAttWeek(n){attWeekStart=addDays(attWeekStart,n);rAttendance(document.getElementById('mainBody'));}
 function openAttCell(workerId,date){
   const cell=document.getElementById('cell_'+workerId+'_'+date);
   if(!cell)return;
-  const current=cell.textContent.trim();
-  const curVal=ATT_STATUS.find(s=>s.zh===current)?.v??'';
-  cell.innerHTML=`<select onchange="setAttCell('${workerId}','${date}',this.value)" onblur="rAttendance(document.getElementById('mainBody'))">${ATT_STATUS.map(s=>'<option value="'+s.v+'"'+(s.v===curVal?' selected':'')+'>'+s.zh+'</option>').join('')}</select>`;
-  cell.querySelector('select').focus();
+  cell.innerHTML=ATT_PRESETS.map(p=>`<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();setAttCell('${workerId}','${date}','${p.v}')">${p.label}</button>`).join('')+
+    `<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();customAttCell('${workerId}','${date}')">自定义</button>`;
 }
-async function setAttCell(workerId,date,status){
-  if(!status){
+function customAttCell(workerId,date){
+  const v=prompt('缺勤天数（比如 0.25 / 0.5 / 0.75 / 1）：');
+  if(v===null)return;
+  const n=parseFloat(v);
+  if(isNaN(n)||n<0){toast('请输入有效的天数');return}
+  setAttCell(workerId,date,String(n));
+}
+async function setAttCell(workerId,date,val){
+  if(!val||parseFloat(val)===0){
     await sb.del('tks_attendance',{worker_id:workerId,date:date});
   }else{
     await fetch(SB_URL+'/rest/v1/tks_attendance?on_conflict=worker_id,date',{
       method:'POST',headers:{...sb.h,'Prefer':'return=representation,resolution=merge-duplicates'},
-      body:JSON.stringify({worker_id:workerId,date:date,status:status,recorded_by:U.id})
+      body:JSON.stringify({worker_id:workerId,date:date,days_absent:parseFloat(val),recorded_by:U.id})
     });
   }
   rAttendance(document.getElementById('mainBody'));
