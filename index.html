@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v10-parttime-bulkfill -->
+<!-- BUILD-VERSION: 2026-08-05-v11-att-display-fix -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -955,7 +955,8 @@ async function delExpense(id){
 
 /* ---- ATTENDANCE ---- */
 const ATT_PRESETS=[{v:'',label:'正常 Normal'},{v:'0.25',label:'缺0.25天 -0.25d'},{v:'0.5',label:'缺0.5天 -0.5d'},{v:'1',label:'缺1天 -1d'}];
-let workers=[],attWeekStart=mondayOf(today()),attSelected=new Set();
+let workers=[],attWeekStart=mondayOf(today()),attSelected=new Set(),attMap={},attOpenKey=null;
+function attFmt(val){return val==null?'':(Math.abs(val)>=100?String(val):('-'+val+'d'));}
 function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
 function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return fmtDate(dt);}
 async function loadWorkers(){
@@ -1008,6 +1009,8 @@ async function rAttendance(el){
   if(!Array.isArray(rows))rows=[];
   const map={};
   rows.forEach(r=>{map[r.worker_id+'_'+r.date]=r.days_absent;});
+  attMap=map;
+  attOpenKey=null;
 
   h+='<div class="card att-grid-wrap"><table class="att-grid"><thead><tr><th>员工 / 日期</th>'+
     weekDates.map(d=>`<th>${d.slice(5)}<br>${['日','一','二','三','四','五','六'][new Date(d+'T00:00:00').getDay()]}</th>`).join('')+'</tr></thead><tbody>';
@@ -1019,7 +1022,7 @@ async function rAttendance(el){
       for(const d of weekDates){
         const key=w.id+'_'+d;
         const val=map[key];
-        const disp=val?(w.is_parttime?('₱'+val):('-'+val+'d')):'';
+        const disp=attFmt(val);
         const sel=attSelected.has(key)?' att-selected':'';
         h+=`<td class="att-cell${sel}" id="cell_${key}" onclick="attCellClick(event,'${w.id}','${d}')">${disp}</td>`;
       }
@@ -1027,7 +1030,7 @@ async function rAttendance(el){
     }
   }
   h+='</tbody></table></div>';
-  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。单击格子 = 快捷标记单个；Shift+点击 = 多选，配合上面"批量填入"一次填一片。🔹 = 兼职员工，格子里直接填当天工资金额。</p>';
+  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。单击格子 = 快捷标记单个；Shift+点击 = 多选，配合上面"批量填入"一次填一片。数字≥100 自动按金额显示（纯数字），小于100 按缺勤天数显示（-0.5d 这种）。</p>';
   el.innerHTML=h;
 }
 function shiftAttWeek(n){attWeekStart=addDays(attWeekStart,n);attSelected.clear();rAttendance(document.getElementById('mainBody'));}
@@ -1056,8 +1059,16 @@ async function applyBulkFill(){
   toast('✅ 已套用到 '+keys.length+' 个格子');
   rAttendance(document.getElementById('mainBody'));
 }
+function closeAttCell(key){
+  const cell=document.getElementById('cell_'+key);
+  if(!cell)return;
+  cell.innerHTML=attFmt(attMap[key]);
+}
 function openAttCell(workerId,date){
-  const cell=document.getElementById('cell_'+workerId+'_'+date);
+  const key=workerId+'_'+date;
+  if(attOpenKey&&attOpenKey!==key)closeAttCell(attOpenKey);
+  attOpenKey=key;
+  const cell=document.getElementById('cell_'+key);
   if(!cell)return;
   cell.innerHTML=ATT_PRESETS.map(p=>`<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();setAttCell('${workerId}','${date}','${p.v}')">${p.label}</button>`).join('')+
     `<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();customAttCell('${workerId}','${date}')">自定义 Custom</button>`;
