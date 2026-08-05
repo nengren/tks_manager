@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v7-attendance-bilingual -->
+<!-- BUILD-VERSION: 2026-08-05-v8-worker-reorder-error-surface -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -963,10 +963,16 @@ async function rAttendance(el){
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
   let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记缺勤例外，员工花名册独立维护，不需要登录账号</p></div>`;
 
-  // 员工花名册管理
-  h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length})</h3>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
-      ${workers.map(w=>`<span class="badge" style="display:inline-flex;align-items:center;gap:6px">${esc(w.name)} <span style="cursor:pointer;color:var(--bad)" onclick="delWorker('${w.id}','${esc(w.name)}')">✕</span></span>`).join('')||'<span style="color:var(--text3);font-size:.82rem">暂无员工，先在下面批量添加</span>'}
+  // 员工花名册管理（带顺序，跟打卡机顺序一致，可以手动调整）
+  h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length}) · 顺序按打卡机来，可用 ↑↓ 调整</h3>
+    <div style="max-height:280px;overflow-y:auto;margin:10px 0">
+    ${workers.length?workers.map((w,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f1f5f9">
+        <span style="color:var(--text3);font-size:.72rem;width:24px">${i+1}</span>
+        <span style="flex:1">${esc(w.name)}</span>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="moveWorker('${w.id}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 8px" onclick="moveWorker('${w.id}',1)" ${i===workers.length-1?'disabled':''}>↓</button>
+        <span style="cursor:pointer;color:var(--bad);padding:0 6px" onclick="delWorker('${w.id}','${esc(w.name)}')">✕</span>
+      </div>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无员工，先在下面添加</span>'}
     </div>
     <div class="form-row">
       <div class="fg"><label>单个添加 Add One</label><div style="display:flex;gap:8px"><input type="text" id="newWorkerName" placeholder="姓名"><button class="btn btn-ghost btn-sm" onclick="addWorker()">➕</button></div></div>
@@ -1022,15 +1028,32 @@ function customAttCell(workerId,date){
   if(isNaN(n)||n<0){toast('请输入有效的天数');return}
   setAttCell(workerId,date,String(n));
 }
+async function moveWorker(id,dir){
+  const idx=workers.findIndex(w=>w.id===id);
+  if(idx<0)return;
+  const swapIdx=idx+dir;
+  if(swapIdx<0||swapIdx>=workers.length)return;
+  const a=workers[idx],b=workers[swapIdx];
+  const soA=a.sort_order,soB=b.sort_order;
+  // 如果两人 sort_order 相同（比如都是默认0），先给它们分配不同的值，确保能真正交换顺序
+  const finalA=soA===soB?idx:soA, finalB=soA===soB?swapIdx:soB;
+  await sb.patch('tks_workers',{id:a.id},{sort_order:finalB});
+  await sb.patch('tks_workers',{id:b.id},{sort_order:finalA});
+  rAttendance(document.getElementById('mainBody'));
+}
 async function setAttCell(workerId,date,val){
-  if(!val||parseFloat(val)===0){
-    await sb.del('tks_attendance',{worker_id:workerId,date:date});
-  }else{
-    await fetch(SB_URL+'/rest/v1/tks_attendance?on_conflict=worker_id,date',{
-      method:'POST',headers:{...sb.h,'Prefer':'return=representation,resolution=merge-duplicates'},
-      body:JSON.stringify({worker_id:workerId,date:date,days_absent:parseFloat(val),recorded_by:U.id})
-    });
-  }
+  try{
+    let r;
+    if(!val||parseFloat(val)===0){
+      r=await fetch(SB_URL+'/rest/v1/tks_attendance?worker_id=eq.'+workerId+'&date=eq.'+date,{method:'DELETE',headers:sb.h});
+    }else{
+      r=await fetch(SB_URL+'/rest/v1/tks_attendance?on_conflict=worker_id,date',{
+        method:'POST',headers:{...sb.h,'Prefer':'return=representation,resolution=merge-duplicates'},
+        body:JSON.stringify({worker_id:workerId,date:date,days_absent:parseFloat(val),recorded_by:U.id})
+      });
+    }
+    if(!r.ok){const t=await r.text();toast('❌ 保存失败: '+t);return}
+  }catch(e){toast('❌ 网络错误: '+e.message);return}
   rAttendance(document.getElementById('mainBody'));
 }
 async function addWorker(){
