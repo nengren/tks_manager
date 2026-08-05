@@ -948,7 +948,7 @@ async function delExpense(id){
 }
 
 /* ---- ATTENDANCE ---- */
-const ATT_PRESETS=[{v:'',label:'正常'},{v:'0.25',label:'缺0.25天'},{v:'0.5',label:'缺0.5天'},{v:'1',label:'缺1天'}];
+const ATT_PRESETS=[{v:'',label:'正常 Normal'},{v:'0.25',label:'缺0.25天 -0.25d'},{v:'0.5',label:'缺0.5天 -0.5d'},{v:'1',label:'缺1天 -1d'}];
 let workers=[],attWeekStart=mondayOf(today());
 function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
 function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return fmtDate(dt);}
@@ -998,7 +998,7 @@ async function rAttendance(el){
       for(const d of weekDates){
         const key=w.id+'_'+d;
         const val=map[key];
-        h+=`<td class="att-cell" id="cell_${key}" onclick="openAttCell('${w.id}','${d}')">${val?('缺'+val+'天'):''}</td>`;
+        h+=`<td class="att-cell" id="cell_${key}" onclick="openAttCell('${w.id}','${d}')">${val?('-'+val+'d'):''}</td>`;
       }
       h+='</tr>';
     }
@@ -1012,7 +1012,7 @@ function openAttCell(workerId,date){
   const cell=document.getElementById('cell_'+workerId+'_'+date);
   if(!cell)return;
   cell.innerHTML=ATT_PRESETS.map(p=>`<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();setAttCell('${workerId}','${date}','${p.v}')">${p.label}</button>`).join('')+
-    `<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();customAttCell('${workerId}','${date}')">自定义</button>`;
+    `<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();customAttCell('${workerId}','${date}')">自定义 Custom</button>`;
 }
 function customAttCell(workerId,date){
   const v=prompt('缺勤天数（比如 0.25 / 0.5 / 0.75 / 1）：');
