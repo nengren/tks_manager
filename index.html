@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v11-att-display-fix -->
+<!-- BUILD-VERSION: 2026-08-05-v12-inline-cell-edit -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -954,7 +954,6 @@ async function delExpense(id){
 }
 
 /* ---- ATTENDANCE ---- */
-const ATT_PRESETS=[{v:'',label:'正常 Normal'},{v:'0.25',label:'缺0.25天 -0.25d'},{v:'0.5',label:'缺0.5天 -0.5d'},{v:'1',label:'缺1天 -1d'}];
 let workers=[],attWeekStart=mondayOf(today()),attSelected=new Set(),attMap={},attOpenKey=null;
 function attFmt(val){return val==null?'':(Math.abs(val)>=100?String(val):('-'+val+'d'));}
 function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
@@ -1030,7 +1029,7 @@ async function rAttendance(el){
     }
   }
   h+='</tbody></table></div>';
-  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。单击格子 = 快捷标记单个；Shift+点击 = 多选，配合上面"批量填入"一次填一片。数字≥100 自动按金额显示（纯数字），小于100 按缺勤天数显示（-0.5d 这种）。</p>';
+  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。点击格子直接变成输入框：打字覆盖，回车保存，删空+回车=恢复正常，Esc=取消。Shift+点击 = 多选，配合上面"批量填入"一次填一片。数字≥100 自动按金额显示（纯数字），小于100 按缺勤天数显示（-0.5d 这种）。</p>';
   el.innerHTML=h;
 }
 function shiftAttWeek(n){attWeekStart=addDays(attWeekStart,n);attSelected.clear();rAttendance(document.getElementById('mainBody'));}
@@ -1070,15 +1069,21 @@ function openAttCell(workerId,date){
   attOpenKey=key;
   const cell=document.getElementById('cell_'+key);
   if(!cell)return;
-  cell.innerHTML=ATT_PRESETS.map(p=>`<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();setAttCell('${workerId}','${date}','${p.v}')">${p.label}</button>`).join('')+
-    `<button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:.68rem;margin:1px" onclick="event.stopPropagation();customAttCell('${workerId}','${date}')">自定义 Custom</button>`;
+  const cur=attMap[key];
+  cell.innerHTML=`<input type="number" step="0.01" id="input_${key}" value="${cur!=null?cur:''}" style="width:100%;border:none;outline:2px solid var(--pri);text-align:center;font-size:.78rem;padding:2px;border-radius:4px" onkeydown="attInputKey(event,'${workerId}','${date}')" onblur="attInputBlur('${workerId}','${date}')">`;
+  const inp=document.getElementById('input_'+key);
+  inp.focus();inp.select();
 }
-function customAttCell(workerId,date){
-  const v=prompt('填一个数字（正式员工=缺勤天数，比如 0.5；兼职员工=当天工资金额，比如 600）：');
-  if(v===null)return;
-  const n=parseFloat(v);
-  if(isNaN(n)||n<0){toast('请输入有效的数字');return}
-  setAttCell(workerId,date,String(n));
+function attInputKey(e,workerId,date){
+  if(e.key==='Enter'){e.preventDefault();e.target.blur();}
+  else if(e.key==='Escape'){e.preventDefault();e.target.dataset.cancel='1';attOpenKey=null;closeAttCell(workerId+'_'+date);}
+}
+function attInputBlur(workerId,date){
+  const key=workerId+'_'+date;
+  const inp=document.getElementById('input_'+key);
+  if(!inp||inp.dataset.cancel)return;
+  attOpenKey=null;
+  setAttCell(workerId,date,inp.value.trim());
 }
 let dragWorkerId=null;
 function workerDragStart(e){dragWorkerId=e.currentTarget.dataset.id;e.dataTransfer.effectAllowed='move';}
