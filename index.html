@@ -143,6 +143,8 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .att-grid td.att-cell{cursor:pointer}
 .att-grid td.att-cell:hover{background:var(--pri-l)}
 .att-grid select{font-size:.75rem;padding:2px;width:100%}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .calc-box{background:var(--pri-l);border-radius:8px;padding:12px 16px;font-size:.82rem;color:var(--pri-d);margin:12px 0}
 .detail-toggle{font-size:.8rem;color:var(--pri);cursor:pointer;margin:10px 0;display:inline-block}
 .detail-toggle:hover{text-decoration:underline}
@@ -833,7 +835,7 @@ async function rExpenses(el){
   }else{
     for(const r of rows){
       h+=`<tr class="${r.approved?'exp-approved':''}">
-        <td>${r.date}</td>
+        <td>${r.expense_date}</td>
         <td>${esc(r.category_name||'—')}</td>
         <td style="color:var(--ok)">${r.income>0?'+'+Number(r.income).toFixed(2):''}</td>
         <td style="color:var(--bad)">${r.expense>0?'-'+Number(r.expense).toFixed(2):''}</td>
