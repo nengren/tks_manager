@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v14-collapse-inactive -->
+<!-- BUILD-VERSION: 2026-08-05-v15-expense-edit -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -771,7 +771,7 @@ async function delPassword(id,name){
 }
 
 /* ---- EXPENSES ---- */
-let expCategories=[],expRelatedPersons=[],expFilter={from:'',to:'',cat:'',kw:''},expPendingImg=null,showInactiveCat=false,showInactivePerson=false;
+let expCategories=[],expRelatedPersons=[],expFilter={from:'',to:'',cat:'',kw:''},expPendingImg=null,showInactiveCat=false,showInactivePerson=false,expEditingId=null,expRowsCache={};
 async function loadExpCategories(){
   try{const r=await sb.rpc('tks_get_expense_categories',{p_user_id:U.id});expCategories=Array.isArray(r)?r:[]}
   catch(e){expCategories=[]}
@@ -844,7 +844,7 @@ async function rExpenses(el){
 
 
   // 新增一笔（清晰的表单，字段顺序：日期→类别→收入/支出→金额→关联人→凭证；登记人和审核不需要手动填，自动/单独处理）
-  h+=`<div class="card"><h3>➕ 登记一笔 New Entry</h3>
+  h+=`<div class="card"><h3>${expEditingId?'✏️ 编辑这一笔 Edit Entry':'➕ 登记一笔 New Entry'}</h3>
     <div class="form-row-4" style="margin-top:14px">
       <div class="fg"><label>日期 Date *</label><input type="date" id="exDate" value="${today()}"></div>
       <div class="fg"><label>类别 Category *</label><select id="exCat">${expCatOpts()}</select></div>
@@ -853,10 +853,13 @@ async function rExpenses(el){
     </div>
     <div class="form-row">
       <div class="fg"><label>关联人 Related Person（这笔钱给谁/谁给的）</label><select id="exRelated">${relatedOpts()}</select></div>
-      <div class="fg"><label>凭证 Photo（可选，不是每笔都要传）</label><input type="file" id="exPhoto" accept="image/*" onchange="stagePhoto(this)"></div>
+      <div class="fg"><label>凭证 Photo（可选，不是每笔都要传${expEditingId?'，不选就保留原来的':''}）</label><input type="file" id="exPhoto" accept="image/*" onchange="stagePhoto(this)"></div>
     </div>
     <div class="fg"><label>备注 Note</label><input type="text" id="exNote" placeholder="说明..." autocomplete="off"></div>
-    <button class="btn btn-pri" onclick="addExpense()" style="max-width:200px">➕ 登记</button>
+    <div style="display:flex;gap:8px">
+    <button class="btn btn-pri" onclick="addExpense()" style="max-width:200px">${expEditingId?'💾 保存修改':'➕ 登记'}</button>
+    ${expEditingId?'<button class="btn btn-ghost" onclick="cancelEditExpense()" style="max-width:120px">✕ 取消编辑</button>':''}
+    </div>
   </div>`;
 
   // 筛选
@@ -882,7 +885,9 @@ async function rExpenses(el){
   }else if(rows.length===0){
     h+='<tr><td colspan="11" style="color:var(--text3);text-align:center">暂无记录</td></tr>';
   }else{
+    expRowsCache={};
     for(const r of rows){
+      expRowsCache[r.id]=r;
       h+=`<tr class="${r.approved?'exp-approved':''}">
         <td>${r.expense_date}</td>
         <td>${esc(r.category_name||'—')}</td>
@@ -894,7 +899,7 @@ async function rExpenses(el){
         <td>${isAdmin?`<button class="btn ${r.approved?'btn-ok':'btn-ghost'} btn-sm" onclick="toggleApprove('${r.id}',${!r.approved})">${r.approved?'✅':'待审'}</button>`:(r.approved?'✅':'—')}</td>
         <td><b>${Number(r.running_balance).toFixed(2)}</b></td>
         <td style="color:var(--text2)">${esc(r.note||'—')}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="delExpense('${r.id}')">🗑️</button></td>
+        <td><button class="btn btn-ghost btn-sm" onclick="editExpense('${r.id}')">✏️</button> <button class="btn btn-ghost btn-sm" onclick="delExpense('${r.id}')">🗑️</button></td>
       </tr>`;
     }
   }
@@ -946,7 +951,7 @@ async function stagePhoto(inp){
 async function addExpense(){
   const date=document.getElementById('exDate').value,cat=document.getElementById('exCat').value,
     type=document.getElementById('exType').value,amount=parseFloat(document.getElementById('exAmount').value),
-    note=document.getElementById('exNote').value.trim(),related=document.getElementById('exRelated').value.trim();
+    note=document.getElementById('exNote').value.trim(),related=document.getElementById('exRelated').value;
   if(!date||!cat){toast('请填写日期和类别');return}
   if(!amount||amount<=0){toast('请填写有效金额');return}
   const income=type==='income'?amount:0,expense=type==='expense'?amount:0;
@@ -955,11 +960,37 @@ async function addExpense(){
     toast('📤 上传图片中...');
     try{imageUrl=await uploadImage(expPendingImg,'expenses')}catch(e){toast('❌ 图片上传失败，其他内容已保留');}
   }
-  const r=await sb.rpc('tks_add_expense',{p_user_id:U.id,p_date:date,p_category_id:cat,p_note:note||null,p_income:income,p_expense:expense,p_related_person:related||null,p_image_url:imageUrl});
-  if(r&&r.success!==false){
-    toast('✅ 已登记');expPendingImg=null;
-    rExpenses(document.getElementById('mainBody'));
-  }else toast('❌ '+(r&&r.message||'登记失败'));
+  if(expEditingId){
+    const r=await sb.rpc('tks_update_expense',{p_user_id:U.id,p_id:expEditingId,p_date:date,p_category_id:cat,p_note:note||null,p_income:income,p_expense:expense,p_related_person:related||null,p_image_url:imageUrl});
+    if(r&&r.success!==false){
+      toast('✅ 已保存修改（重新变回待审）');expPendingImg=null;expEditingId=null;
+      rExpenses(document.getElementById('mainBody'));
+    }else toast('❌ '+(r&&r.message||'保存失败'));
+  }else{
+    const r=await sb.rpc('tks_add_expense',{p_user_id:U.id,p_date:date,p_category_id:cat,p_note:note||null,p_income:income,p_expense:expense,p_related_person:related||null,p_image_url:imageUrl});
+    if(r&&r.success!==false){
+      toast('✅ 已登记');expPendingImg=null;
+      rExpenses(document.getElementById('mainBody'));
+    }else toast('❌ '+(r&&r.message||'登记失败'));
+  }
+}
+function editExpense(id){
+  const r=expRowsCache[id];
+  if(!r){toast('找不到这条记录，请刷新页面重试');return}
+  expEditingId=id;
+  rExpenses(document.getElementById('mainBody')).then(()=>{
+    document.getElementById('exDate').value=r.expense_date;
+    document.getElementById('exCat').value=r.category_id||'';
+    document.getElementById('exType').value=r.income>0?'income':'expense';
+    document.getElementById('exAmount').value=r.income>0?r.income:r.expense;
+    document.getElementById('exRelated').value=r.related_person||'';
+    document.getElementById('exNote').value=r.note||'';
+    document.querySelector('.card h3')?.scrollIntoView({behavior:'smooth',block:'center'});
+  });
+}
+function cancelEditExpense(){
+  expEditingId=null;expPendingImg=null;
+  rExpenses(document.getElementById('mainBody'));
 }
 async function toggleApprove(id,approved){
   const r=await sb.rpc('tks_approve_expense',{p_user_id:U.id,p_id:id,p_approved:approved});
