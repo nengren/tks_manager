@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v15-expense-edit -->
+<!-- BUILD-VERSION: 2026-08-05-v16-scores-simplify -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1268,18 +1268,6 @@ async function rScore(el){
       <div class="fg"><label>客服 Service</label><input type="number" id="sS" min="0" max="5" step="0.1" oninput="calcSc()"></div>
     </div>
     <div class="calc-box" id="calcBox">填入三项分数自动计算 Auto-calculates from 3 scores</div>
-    <span class="detail-toggle" onclick="document.getElementById('detailFields').classList.toggle('hidden')">▸ 展开详细指标 Show detailed metrics</span>
-    <div id="detailFields" class="hidden">
-      <div class="sec-title">详细指标 (%)</div>
-      <div class="form-row-3">
-        <div class="fg"><label>差评率 Neg.Review%</label><input type="number" id="sNR" min="0" max="100" step="0.01"></div>
-        <div class="fg"><label>退款率 R&R%</label><input type="number" id="sRR" min="0" max="100" step="0.01"></div>
-        <div class="fg"><label>发货率 FDR%</label><input type="number" id="sFDR" min="0" max="100" step="0.01"></div>
-        <div class="fg"><label>取消率 SFCR%</label><input type="number" id="sSFCR" min="0" max="100" step="0.01"></div>
-        <div class="fg"><label>投诉率 Complaint%</label><input type="number" id="sCR" min="0" max="100" step="0.01"></div>
-        <div class="fg"><label>12H回复率%</label><input type="number" id="sRESP" min="0" max="100" step="0.01"></div>
-      </div>
-    </div>
     <button class="btn btn-pri" onclick="saveSc()" style="margin-top:16px;max-width:300px">💾 保存分数 Save Score</button>
   </div><div id="scoreHist"></div>`;
   el.innerHTML=h;
@@ -1297,12 +1285,6 @@ async function saveSc(){
     product_satisfaction:parseFloat(document.getElementById('sP').value)||null,
     fulfillment:parseFloat(document.getElementById('sF').value)||null,
     customer_service:parseFloat(document.getElementById('sS').value)||null,
-    negative_review_rate:parseFloat(document.getElementById('sNR').value)||null,
-    rr_rate:parseFloat(document.getElementById('sRR').value)||null,
-    fdr:parseFloat(document.getElementById('sFDR').value)||null,
-    sfcr:parseFloat(document.getElementById('sSFCR').value)||null,
-    complaint_rate:parseFloat(document.getElementById('sCR').value)||null,
-    response_rate_12h:parseFloat(document.getElementById('sRESP').value)||null,
     recorded_by:U.id};
   try{const r=await sb.upsert('tks_scores',d);
     if(Array.isArray(r)&&r.length>0){toast('✅ 分数已保存!');rScore(document.getElementById('mainBody'));}
