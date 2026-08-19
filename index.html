@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v16-scores-simplify -->
+<!-- BUILD-VERSION: 2026-08-05-v17-score-formula-rank-assignee -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1245,9 +1245,10 @@ async function rScore(el){
   const latest={},prev={};if(Array.isArray(allScores))allScores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
   let h=`<div class="main-header"><h1>📊 店铺分数</h1><p>Store Scores</p></div>`;
   if(Object.keys(latest).length>0){
-    h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>总分</th><th>趋势</th><th>产品45%</th><th>物流40%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
-    for(const s of stores){const sc=latest[s.id];if(!sc)continue;const pv=prev[s.id];
-      h+=`<tr><td><b>${esc(s.store_name)}</b></td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
+    h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>负责人</th><th>总分</th><th>趋势</th><th>产品70%</th><th>物流15%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
+    const ranked=stores.filter(s=>latest[s.id]).sort((a,b)=>(latest[b.id].overall_score??-1)-(latest[a.id].overall_score??-1));
+    for(const s of ranked){const sc=latest[s.id];const pv=prev[s.id];
+      h+=`<tr><td><b>${esc(s.store_name)}</b></td><td>${s.assigned_to?staffName(s.assigned_to):'<span style="color:var(--text3)">未指派</span>'}</td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
         <td>${pv?trend(sc.overall_score,pv.overall_score):'—'}</td>
         <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}${pv?trend(sc.product_satisfaction,pv.product_satisfaction):''}</td>
         <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}${pv?trend(sc.fulfillment,pv.fulfillment):''}</td>
@@ -1274,8 +1275,8 @@ async function rScore(el){
 }
 function calcSc(){
   const p=parseFloat(document.getElementById('sP').value)||0,f=parseFloat(document.getElementById('sF').value)||0,s=parseFloat(document.getElementById('sS').value)||0;
-  if(p||f||s){const c=(p*.45+f*.40+s*.15).toFixed(1);
-    document.getElementById('calcBox').innerHTML='公式: <b>'+p+'</b>×45% + <b>'+f+'</b>×40% + <b>'+s+'</b>×15% = <b style="font-size:1.1em">'+c+'</b>';
+  if(p||f||s){const c=(p*.70+f*.15+s*.15).toFixed(1);
+    document.getElementById('calcBox').innerHTML='公式: <b>'+p+'</b>×70% + <b>'+f+'</b>×15% + <b>'+s+'</b>×15% = <b style="font-size:1.1em">'+c+'</b>';
     if(!document.getElementById('sO').value)document.getElementById('sO').value=c;}
 }
 async function saveSc(){
