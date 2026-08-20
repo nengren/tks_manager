@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v17-score-formula-rank-assignee -->
+<!-- BUILD-VERSION: 2026-08-05-v18-order-entry-phase1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -351,6 +351,7 @@ const pClass=(d,t)=>d===t?'p-full':d>0?'p-partial':'p-none';
 const issueTag=t=>{const cls={wrong_item:'wrong',damaged:'damaged',missing_item:'missing',defective:'defective',other:'other'};const i=ISSUE_TYPES.find(x=>x.v===t);return '<span class="tag tag-'+(cls[t]||'other')+'">'+(i?i.zh+' '+i.en:t)+'</span>'};
 const resultTag=r=>{const i=RESULTS.find(x=>x.v===r);return '<span class="tag tag-'+r+'">'+(i?i.zh+' '+i.en:r)+'</span>'};
 const storeOpts=(sel='')=>'<option value="">-- 选择店铺 Select Store --</option>'+stores.map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.store_name+'</option>').join('');
+const myStoreOpts=(sel='')=>'<option value="">-- 选择店铺 Select Store --</option>'+myStores().map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.store_name+'</option>').join('');
 const staffOpts=(sel='')=>'<option value="">-- 未指派 Unassigned --</option>'+staffList.map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.display_name+'</option>').join('');
 const staffName=id=>{if(!id)return '—';const s=staffList.find(x=>x.id===id);return s?s.display_name:'—'};
 function trend(c,p){if(c==null||p==null)return '';const d=+(c-p).toFixed(2);if(d>0)return ' <span style="color:var(--ok);font-size:.68rem;font-weight:700">↑+'+d+'</span>';if(d<0)return ' <span style="color:var(--bad);font-size:.68rem;font-weight:700">↓'+d+'</span>';return ' <span style="color:var(--text3);font-size:.68rem">→</span>'}
@@ -448,6 +449,7 @@ function buildNav(){
     {id:'issues',icon:'⚠️',label:'问题 Issues'},
     {id:'sop',icon:'📖',label:'SOP'},
   ];
+  if(a)tabs.push({id:'orders',icon:'📦',label:'订单登记 Order Entry'});
   if(canPw)tabs.push({id:'passwords',icon:'🔐',label:'密码库 Passwords'});
   if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
   if(canPw)tabs.push({id:'attendance',icon:'🕐',label:'考勤登记 Attendance'});
@@ -470,7 +472,7 @@ function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses,attendance:rAttendance};
+  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses,attendance:rAttendance,orders:rOrders};
   if(render[id])render[id](m);
 }
 
@@ -1246,7 +1248,8 @@ async function rScore(el){
   let h=`<div class="main-header"><h1>📊 店铺分数</h1><p>Store Scores</p></div>`;
   if(Object.keys(latest).length>0){
     h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>负责人</th><th>总分</th><th>趋势</th><th>产品70%</th><th>物流15%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
-    const ranked=stores.filter(s=>latest[s.id]).sort((a,b)=>(latest[b.id].overall_score??-1)-(latest[a.id].overall_score??-1));
+    const visibleStores=U.role==='admin'?stores:myStores();
+    const ranked=visibleStores.filter(s=>latest[s.id]).sort((a,b)=>(latest[b.id].overall_score??-1)-(latest[a.id].overall_score??-1));
     for(const s of ranked){const sc=latest[s.id];const pv=prev[s.id];
       h+=`<tr><td><b>${esc(s.store_name)}</b></td><td>${s.assigned_to?staffName(s.assigned_to):'<span style="color:var(--text3)">未指派</span>'}</td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
         <td>${pv?trend(sc.overall_score,pv.overall_score):'—'}</td>
@@ -1258,7 +1261,7 @@ async function rScore(el){
     h+='</tbody></table></div>';}
   h+=`<div class="card"><h3>➕ 录入分数 Record Score</h3>
     <div class="form-row" style="margin-top:16px">
-      <div class="fg"><label>店铺 Store *</label><select id="scStore" onchange="loadHistory()">${storeOpts()}</select></div>
+      <div class="fg"><label>店铺 Store *</label><select id="scStore" onchange="loadHistory()">${U.role==='admin'?storeOpts():myStoreOpts()}</select></div>
       <div class="fg"><label>日期 Date</label><input type="date" id="scDate" value="${today()}"></div>
     </div>
     <div class="sec-title">主要分数 Main Scores (0-5)</div>
@@ -1308,6 +1311,49 @@ async function loadHistory(){
       <td>${s.negative_review_rate??'-'}${p?trend(s.negative_review_rate,p.negative_review_rate):''}</td>
       <td>${s.response_rate_12h??'-'}${p?trend(s.response_rate_12h,p.response_rate_12h):''}</td></tr>`}
   h+='</tbody></table></div>';c.innerHTML=h;
+}
+
+/* ---- ORDER ENTRY (S) ---- */
+let ordersDate=today();
+async function rOrders(el){
+  if(U.role!=='admin'){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  const date=ordersDate;
+  let h=`<div class="main-header"><h1>📦 订单登记 Order Entry</h1><p>Daily Orders per Store &middot; 用于按订单数加权计算周度均分，客服端看不到/改不了这一列</p></div>`;
+  h+=`<div class="card" style="display:flex;align-items:center;gap:10px">
+    <label style="font-size:.85rem">日期 Date</label>
+    <input type="date" id="ordersDateInput" value="${date}" onchange="changeOrdersDate(this.value)">
+  </div>`;
+  let scores=await sb.get('tks_scores','record_date=eq.'+date);
+  if(!Array.isArray(scores))scores=[];
+  const map={};scores.forEach(s=>{map[s.store_id]=s});
+  h+='<div class="card" style="overflow-x:auto"><table class="sheet-table"><thead><tr><th>店铺</th><th>负责人</th><th>今日总分（只读）</th><th>今日订单数</th><th>核对 ✓</th></tr></thead><tbody>';
+  for(const s of stores){
+    const sc=map[s.id];
+    h+=`<tr>
+      <td><b>${esc(s.store_name)}</b></td>
+      <td>${s.assigned_to?staffName(s.assigned_to):'<span style="color:var(--text3)">未指派</span>'}</td>
+      <td>${sc&&sc.overall_score!=null?sc.overall_score:'<span style="color:var(--text3)">未填</span>'}</td>
+      <td><input type="number" id="ord_${s.id}" value="${sc&&sc.daily_orders!=null?sc.daily_orders:''}" style="width:90px" onblur="saveOrder('${s.id}','${date}')"></td>
+      <td style="text-align:center"><input type="checkbox" id="ver_${s.id}" ${sc&&sc.verified?'checked':''} onchange="toggleVerify('${s.id}','${date}',this.checked)"></td>
+    </tr>`;
+  }
+  h+='</tbody></table></div>';
+  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">填完订单数点别处（自动保存）。核对 = 你对照 Seller Center 后台确认这行分数属实。</p>';
+  el.innerHTML=h;
+}
+function changeOrdersDate(d){ordersDate=d;rOrders(document.getElementById('mainBody'));}
+async function saveOrder(storeId,date){
+  const inp=document.getElementById('ord_'+storeId);
+  const v=inp.value.trim();
+  const orders=v===''?null:parseInt(v);
+  const r=await sb.upsert('tks_scores',{store_id:storeId,record_date:date,daily_orders:orders,orders_recorded_by:U.id});
+  if(Array.isArray(r)&&r.length>0)toast('✅ 已保存');
+  else toast('❌ 保存失败: '+(r&&r.message||JSON.stringify(r)));
+}
+async function toggleVerify(storeId,date,checked){
+  const r=await sb.upsert('tks_scores',{store_id:storeId,record_date:date,verified:checked,verified_by:checked?U.id:null,verified_at:checked?new Date().toISOString():null});
+  if(Array.isArray(r)&&r.length>0)toast(checked?'✅ 已核对':'已取消核对');
+  else toast('❌ 操作失败: '+(r&&r.message||JSON.stringify(r)));
 }
 
 /* ---- ISSUES ---- */
