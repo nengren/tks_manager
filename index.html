@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v19-weekly-dashboard -->
+<!-- BUILD-VERSION: 2026-08-05-v20-scores-rewards-merged -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -445,12 +445,10 @@ function buildNav(){
     {id:'chat',icon:'💬',label:'聊天 Chat'},
     {id:'todos',icon:'📋',label:'待办 Todos'},
     {id:'tasks',icon:'✅',label:'任务 Tasks'},
-    {id:'score',icon:'📊',label:'分数 Scores'},
+    {id:'score',icon:'📊',label:'分数与奖励 Scores & Rewards'},
     {id:'issues',icon:'⚠️',label:'问题 Issues'},
     {id:'sop',icon:'📖',label:'SOP'},
   ];
-  if(a)tabs.push({id:'orders',icon:'📦',label:'订单登记 Order Entry'});
-  if(a)tabs.push({id:'dashboard',icon:'🏆',label:'周度看板 Weekly Dashboard'});
   if(canPw)tabs.push({id:'passwords',icon:'🔐',label:'密码库 Passwords'});
   if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
   if(canPw)tabs.push({id:'attendance',icon:'🕐',label:'考勤登记 Attendance'});
@@ -473,7 +471,7 @@ function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScore,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses,attendance:rAttendance,orders:rOrders,dashboard:rDashboard};
+  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScoreHub,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses,attendance:rAttendance};
   if(render[id])render[id](m);
 }
 
@@ -1242,11 +1240,50 @@ async function toggleCk(key,storeId,complete){
   rTasks(document.getElementById('mainBody'));
 }
 
+function weightedAvgFrom(byStoreDate,storeIds,dates){
+  let num=0,den=0;
+  for(const sid of storeIds)for(const d of dates){
+    const sc=byStoreDate[sid+'_'+d];
+    if(sc&&sc.overall_score!=null&&sc.daily_orders!=null&&sc.daily_orders>0){num+=sc.overall_score*sc.daily_orders;den+=sc.daily_orders;}
+  }
+  return den>0?num/den:null;
+}
+async function loadProgressTiers(){
+  const r=await sb.get('tks_progress_tiers','order=min_improvement.desc');
+  progressTiers=Array.isArray(r)?r:[];
+}
+function matchProgressTier(delta){
+  if(delta==null)return null;
+  for(const t of progressTiers){if(delta>=t.min_improvement)return t;}
+  return null;
+}
+let progressTiers=[];
+let sRewardConfig={monthly_progress_reward:300,rescue_reward_per_store:150,rescue_threshold:4.0,rescue_cap_count:2};
+
+let scoreHubTab='entry';
+function scoreHubNavHtml(){
+  const isAdmin=U.role==='admin';
+  const tabs=[{id:'entry',label:'📝 录入 Entry'}];
+  if(!isAdmin)tabs.push({id:'myprogress',label:'🎯 我的进度 My Progress'});
+  if(isAdmin){tabs.push({id:'orders',label:'📦 订单登记 Orders'});tabs.push({id:'dashboard',label:'🏆 周度看板 Dashboard'});}
+  return `<div class="main-header"><h1>📊 分数与奖励</h1><p>Scores &amp; Rewards</p></div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">${tabs.map(t=>`<button class="btn ${scoreHubTab===t.id?'btn-pri':'btn-ghost'} btn-sm" onclick="switchScoreHub('${t.id}')">${t.label}</button>`).join('')}</div>`;
+}
+function switchScoreHub(id){scoreHubTab=id;rScoreHub(document.getElementById('mainBody'));}
+async function rScoreHub(el){
+  if(scoreHubTab==='myprogress'&&U.role==='admin')scoreHubTab='entry';
+  if((scoreHubTab==='orders'||scoreHubTab==='dashboard')&&U.role!=='admin')scoreHubTab='entry';
+  if(scoreHubTab==='entry')await rScore(el);
+  else if(scoreHubTab==='myprogress')await rMyProgress(el);
+  else if(scoreHubTab==='orders')await rOrders(el);
+  else if(scoreHubTab==='dashboard')await rDashboard(el);
+}
+
 /* ---- SCORES ---- */
 async function rScore(el){
   const allScores=await sb.get('tks_scores','order=record_date.desc&limit=200');
   const latest={},prev={};if(Array.isArray(allScores))allScores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
-  let h=`<div class="main-header"><h1>📊 店铺分数</h1><p>Store Scores</p></div>`;
+  let h=scoreHubNavHtml();
   if(Object.keys(latest).length>0){
     h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>负责人</th><th>总分</th><th>趋势</th><th>产品70%</th><th>物流15%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
     const visibleStores=U.role==='admin'?stores:myStores();
@@ -1314,12 +1351,62 @@ async function loadHistory(){
   h+='</tbody></table></div>';c.innerHTML=h;
 }
 
+/* ---- MY PROGRESS (staff) ---- */
+async function rMyProgress(el){
+  await loadRewardTiers();
+  await loadProgressTiers();
+  const myStoreIds=myStores().map(s=>s.id);
+  let h=scoreHubNavHtml();
+  if(!myStoreIds.length){h+='<div class="card">暂无指派给你的店铺，找 admin 分配</div>';el.innerHTML=h;return}
+  const weekStart=mondayOf(today());
+  const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(weekStart,i));
+  const lastWeekDates=[0,1,2,3,4,5,6].map(i=>addDays(addDays(weekStart,-7),i));
+  let scores=await sb.get('tks_scores','store_id=in.('+myStoreIds.join(',')+')&record_date=gte.'+lastWeekDates[0]+'&record_date=lte.'+weekDates[6]);
+  if(!Array.isArray(scores))scores=[];
+  const byStoreDate={};scores.forEach(s=>{byStoreDate[s.store_id+'_'+s.record_date]=s;});
+  const thisW=weightedAvgFrom(byStoreDate,myStoreIds,weekDates);
+  const lastW=weightedAvgFrom(byStoreDate,myStoreIds,lastWeekDates);
+  const delta=(thisW!=null&&lastW!=null)?(thisW-lastW):null;
+  const tier=matchTier(thisW),ptier=matchProgressTier(delta);
+  const total=(tier?Number(tier.reward_amount):0)+(ptier?Number(ptier.reward_amount):0);
+  h+=`<div class="card" style="text-align:center">
+    <div class="sub-label">本周至今·加权均分（按你名下店铺的订单量加权）</div>
+    <div style="font-size:2.4rem;font-weight:800" class="${sColor(thisW)}">${thisW!=null?thisW.toFixed(2):'暂无数据'}</div>
+    <div style="margin:10px 0;font-size:.85rem;color:var(--text3)">上周 ${lastW!=null?lastW.toFixed(2):'-'} ${delta!=null?'&middot; 环比 '+(delta>=0?'+':'')+delta.toFixed(2):''}</div>
+    <div style="display:flex;justify-content:center;gap:24px;margin-top:16px;flex-wrap:wrap">
+      <div><div class="sub-label">达标档位</div><div style="font-size:1.1rem;font-weight:700">${tier?esc(tier.label)+' ₱'+Number(tier.reward_amount).toFixed(0):'暂未达标'}</div></div>
+      <div><div class="sub-label">进步奖</div><div style="font-size:1.1rem;font-weight:700">${ptier?esc(ptier.label)+' ₱'+Number(ptier.reward_amount).toFixed(0):'暂无'}</div></div>
+      <div><div class="sub-label">本周预计合计</div><div style="font-size:1.3rem;font-weight:800;color:var(--ok)">₱${total.toFixed(0)}</div></div>
+    </div>
+  </div>`;
+  // 下一档还差多少，永远盯"够得着的下一步"，不盯"离顶还差多少"
+  if(thisW!=null){
+    const sortedTiers=[...rewardTiers].sort((a,b)=>a.min_score-b.min_score);
+    const next=sortedTiers.find(t=>t.min_score>thisW);
+    if(next)h+=`<div class="card" style="background:var(--pri-l);border:none">🎯 再涨 <b>${(next.min_score-thisW).toFixed(2)}</b> 分，就能进 <b>${esc(next.label)}</b>（₱${Number(next.reward_amount).toFixed(0)}）</div>`;
+    const belowMe=[...sortedTiers].reverse().find(t=>t.min_score<=thisW);
+    const idx=belowMe?sortedTiers.indexOf(belowMe):-1;
+    const lowerTier=idx>0?sortedTiers[idx-1]:null;
+    if(belowMe&&(thisW-belowMe.min_score)<0.15)h+=`<div class="card" style="background:#fff7ed;border:none;color:#c2410c">⚠️ 你现在离掉出 <b>${esc(belowMe.label)}</b> 只差 <b>${(thisW-belowMe.min_score).toFixed(2)}</b> 分，接下来几天要守住</div>`;
+  }
+  h+='<div class="sec-title">📋 我名下的店铺</div><div class="card"><table class="score-table"><thead><tr><th>店铺</th><th>本周均分</th><th>上周</th><th>环比</th></tr></thead><tbody>';
+  for(const sid of myStoreIds){
+    const s=stores.find(x=>x.id===sid);
+    const tw=weightedAvgFrom(byStoreDate,[sid],weekDates),lw=weightedAvgFrom(byStoreDate,[sid],lastWeekDates);
+    const d=(tw!=null&&lw!=null)?tw-lw:null;
+    h+=`<tr><td><b>${esc(s?.store_name||'-')}</b></td><td class="${sColor(tw)}">${tw!=null?tw.toFixed(2):'-'}</td><td>${lw!=null?lw.toFixed(2):'-'}</td>
+      <td style="color:${d==null?'inherit':(d>=0?'var(--ok)':'var(--bad)')}">${d!=null?(d>=0?'+':'')+d.toFixed(2):'-'}</td></tr>`;
+  }
+  h+='</tbody></table></div>';
+  el.innerHTML=h;
+}
+
 /* ---- ORDER ENTRY (S) ---- */
 let ordersDate=today();
 async function rOrders(el){
   if(U.role!=='admin'){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   const date=ordersDate;
-  let h=`<div class="main-header"><h1>📦 订单登记 Order Entry</h1><p>Daily Orders per Store &middot; 用于按订单数加权计算周度均分，客服端看不到/改不了这一列</p></div>`;
+  let h=scoreHubNavHtml()+`<p style="color:var(--text3);font-size:.85rem;margin-bottom:12px">Daily Orders per Store &middot; 用于按订单数加权计算周度均分，客服端看不到/改不了这一列</p>`;
   h+=`<div class="card" style="display:flex;align-items:center;gap:10px">
     <label style="font-size:.85rem">日期 Date</label>
     <input type="date" id="ordersDateInput" value="${date}" onchange="changeOrdersDate(this.value)">
@@ -1371,10 +1458,12 @@ function matchTier(score){
 async function rDashboard(el){
   if(U.role!=='admin'){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   await loadRewardTiers();
+  await loadProgressTiers();
+  await loadSRewardConfig();
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(dashWeekStart,i));
   const lastWeekStart=addDays(dashWeekStart,-7);
   const lastWeekDates=[0,1,2,3,4,5,6].map(i=>addDays(lastWeekStart,i));
-  let h=`<div class="main-header"><h1>🏆 周度看板 Weekly Dashboard</h1><p>按订单数加权的周度均分，只统计有订单数的天，缺失的天不计入分母</p></div>`;
+  let h=scoreHubNavHtml()+`<p style="color:var(--text3);font-size:.85rem;margin-bottom:12px">按订单数加权的周度均分，只统计有订单数的天，缺失的天不计入分母</p>`;
   h+=`<div class="card" style="display:flex;align-items:center;justify-content:space-between">
     <button class="btn btn-ghost btn-sm" onclick="shiftDashWeek(-7)">← 上一周</button>
     <b>${weekDates[0]} ~ ${weekDates[6]}</b>
@@ -1385,33 +1474,28 @@ async function rDashboard(el){
   if(!Array.isArray(scores))scores=[];
   const byStoreDate={};
   scores.forEach(s=>{byStoreDate[s.store_id+'_'+s.record_date]=s;});
-  function weightedAvg(storeIds,dates){
-    let num=0,den=0;
-    for(const sid of storeIds)for(const d of dates){
-      const sc=byStoreDate[sid+'_'+d];
-      if(sc&&sc.overall_score!=null&&sc.daily_orders!=null&&sc.daily_orders>0){num+=sc.overall_score*sc.daily_orders;den+=sc.daily_orders;}
-    }
-    return den>0?num/den:null;
-  }
+  const weightedAvg=(storeIds,dates)=>weightedAvgFrom(byStoreDate,storeIds,dates);
 
   const staffGroups={};
   staffList.filter(s=>s.is_active).forEach(s=>{
     const myStoreIds=stores.filter(st=>st.assigned_to===s.id).map(st=>st.id);
     if(myStoreIds.length)staffGroups[s.id]={name:s.display_name,storeIds:myStoreIds};
   });
-  h+='<div class="sec-title">👤 客服周度加权均分 & 建议奖励</div><div class="card"><table class="score-table"><thead><tr><th>客服</th><th>本周加权均分</th><th>上周</th><th>环比</th><th>建议档位</th><th>建议奖励</th></tr></thead><tbody>';
-  if(!Object.keys(staffGroups).length)h+='<tr><td colspan="6" style="text-align:center;color:var(--text3)">暂无已指派店铺的员工</td></tr>';
+  h+='<div class="sec-title">👤 客服周度加权均分 & 建议奖励</div><div class="card"><table class="score-table"><thead><tr><th>客服</th><th>本周加权均分</th><th>上周</th><th>环比</th><th>达标档位</th><th>进步奖</th><th>合计</th></tr></thead><tbody>';
+  if(!Object.keys(staffGroups).length)h+='<tr><td colspan="7" style="text-align:center;color:var(--text3)">暂无已指派店铺的员工</td></tr>';
   for(const uid in staffGroups){
     const g=staffGroups[uid];
     const thisW=weightedAvg(g.storeIds,weekDates),lastW=weightedAvg(g.storeIds,lastWeekDates);
     const delta=(thisW!=null&&lastW!=null)?(thisW-lastW):null;
-    const tier=matchTier(thisW);
+    const tier=matchTier(thisW),ptier=matchProgressTier(delta);
+    const total=(tier?Number(tier.reward_amount):0)+(ptier?Number(ptier.reward_amount):0);
     h+=`<tr><td><b>${esc(g.name)}</b></td>
       <td class="${sColor(thisW)}"><b>${thisW!=null?thisW.toFixed(2):'-'}</b></td>
       <td>${lastW!=null?lastW.toFixed(2):'-'}</td>
       <td style="color:${delta==null?'inherit':(delta>=0?'var(--ok)':'var(--bad)')}">${delta!=null?(delta>=0?'+':'')+delta.toFixed(2):'-'}</td>
-      <td>${tier?esc(tier.label):'<span style="color:var(--text3)">无匹配</span>'}</td>
-      <td><b>${tier?'₱'+Number(tier.reward_amount).toFixed(2):'-'}</b></td></tr>`;
+      <td>${tier?esc(tier.label)+' ₱'+Number(tier.reward_amount).toFixed(0):'<span style="color:var(--text3)">无</span>'}</td>
+      <td>${ptier?esc(ptier.label)+' ₱'+Number(ptier.reward_amount).toFixed(0):'<span style="color:var(--text3)">无</span>'}</td>
+      <td><b>₱${total.toFixed(0)}</b></td></tr>`;
   }
   h+='</tbody></table></div>';
 
@@ -1443,6 +1527,64 @@ async function rDashboard(el){
   const rate=totalSlots>0?(filled/totalSlots*100).toFixed(0):0;
   h+=`<div class="sec-title">📋 本周数据完整率</div><div class="card"><div style="font-size:1.6rem;font-weight:700">${rate}% <span style="font-size:.8rem;font-weight:400;color:var(--text3)">(${filled}/${totalSlots} 条：有分数+有订单数+已核对)</span></div></div>`;
 
+  // S 的月度奖励：整体进步奖 + 救活店铺奖（只算有指派负责人的店，未指派/放弃的店不计入）
+  const now=new Date();
+  const mStart=today().slice(0,8)+'01';
+  const lastMonthDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const lmStart=lastMonthDate.getFullYear()+'-'+String(lastMonthDate.getMonth()+1).padStart(2,'0')+'-01';
+  const lmEndDate=new Date(now.getFullYear(),now.getMonth(),0);
+  const lmEnd=lmEndDate.getFullYear()+'-'+String(lmEndDate.getMonth()+1).padStart(2,'0')+'-'+String(lmEndDate.getDate()).padStart(2,'0');
+  const assignedStoreIds=stores.filter(s=>s.assigned_to).map(s=>s.id);
+  let monthScores=await sb.get('tks_scores','record_date=gte.'+lmStart+'&record_date=lte.'+today());
+  if(!Array.isArray(monthScores))monthScores=[];
+  const byStoreDateM={};monthScores.forEach(s=>{byStoreDateM[s.store_id+'_'+s.record_date]=s;});
+  function datesBetween(from,to){const out=[];let d=new Date(from+'T00:00:00');const end=new Date(to+'T00:00:00');while(d<=end){out.push(fmtDate(d));d.setDate(d.getDate()+1);}return out;}
+  const thisMonthDates=datesBetween(mStart,today()),lastMonthDates=datesBetween(lmStart,lmEnd);
+  const companyThisM=weightedAvgFrom(byStoreDateM,assignedStoreIds,thisMonthDates);
+  const companyLastM=weightedAvgFrom(byStoreDateM,assignedStoreIds,lastMonthDates);
+  const companyDelta=(companyThisM!=null&&companyLastM!=null)?companyThisM-companyLastM:null;
+  const sProgressEarned=(companyDelta!=null&&companyDelta>0)?sRewardConfig.monthly_progress_reward:0;
+  const rescued=assignedStoreIds.filter(sid=>{
+    const lm=weightedAvgFrom(byStoreDateM,[sid],lastMonthDates),tm=weightedAvgFrom(byStoreDateM,[sid],thisMonthDates);
+    return lm!=null&&tm!=null&&lm<sRewardConfig.rescue_threshold&&tm>=sRewardConfig.rescue_threshold;
+  });
+  const rescueCount=Math.min(rescued.length,sRewardConfig.rescue_cap_count);
+  const sTotal=sProgressEarned+rescueCount*sRewardConfig.rescue_reward_per_store;
+  h+=`<div class="sec-title">🧑‍💼 总负责人(S) 月度奖励</div><div class="card">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:14px">
+      <div><div class="sub-label">全公司本月加权均分（不含未指派店铺）</div><div style="font-size:1.4rem;font-weight:700" class="${sColor(companyThisM)}">${companyThisM!=null?companyThisM.toFixed(2):'-'}</div></div>
+      <div><div class="sub-label">上月</div><div style="font-size:1.4rem;font-weight:700">${companyLastM!=null?companyLastM.toFixed(2):'-'}</div></div>
+      <div><div class="sub-label">环比</div><div style="font-size:1.4rem;font-weight:700;color:${companyDelta==null?'inherit':(companyDelta>=0?'var(--ok)':'var(--bad)')}">${companyDelta!=null?(companyDelta>=0?'+':'')+companyDelta.toFixed(2):'-'}</div></div>
+    </div>
+    <table class="score-table"><tbody>
+      <tr><td>整体进步奖（本月比上月有提升）</td><td>₱${sProgressEarned.toFixed(0)}</td></tr>
+      <tr><td>救活店铺奖（本月 ${rescued.length} 家脱离阈值以下，封顶${sRewardConfig.rescue_cap_count}家 × ₱${Number(sRewardConfig.rescue_reward_per_store).toFixed(0)}）${rescued.length?'：'+rescued.map(id=>esc(stores.find(s=>s.id===id)?.store_name||'')).join('、'):''}</td><td>₱${(rescueCount*sRewardConfig.rescue_reward_per_store).toFixed(0)}</td></tr>
+      <tr><td><b>本月合计</b></td><td><b>₱${sTotal.toFixed(0)}</b></td></tr>
+    </tbody></table>
+  </div>`;
+
+  h+=`<div class="sec-title">⚙️ S 奖励参数设置</div><div class="card">
+    <div class="form-row-4">
+      <div class="fg"><label>整体进步奖 ₱/月</label><input type="number" step="0.01" id="sCfgProgress" value="${sRewardConfig.monthly_progress_reward}"></div>
+      <div class="fg"><label>救活店铺奖 ₱/家</label><input type="number" step="0.01" id="sCfgRescueAmt" value="${sRewardConfig.rescue_reward_per_store}"></div>
+      <div class="fg"><label>救活门槛分数</label><input type="number" step="0.1" id="sCfgRescueThreshold" value="${sRewardConfig.rescue_threshold}"></div>
+      <div class="fg"><label>救活封顶(家)</label><input type="number" step="1" id="sCfgRescueCap" value="${sRewardConfig.rescue_cap_count}"></div>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="saveSRewardConfig()">💾 保存参数</button>
+  </div>`;
+
+  h+=`<div class="sec-title">⚙️ 进步奖档位配置 Progress Tiers（客服环比涨幅奖励）</div><div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      ${progressTiers.length?progressTiers.map(t=>`<span class="badge" style="display:inline-flex;align-items:center;gap:6px">${esc(t.label)}（涨≥${t.min_improvement}分 → ₱${Number(t.reward_amount).toFixed(2)}）<span style="cursor:pointer;color:var(--bad)" onclick="delProgressTier('${t.id}')">✕</span></span>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无档位，先在下面添加</span>'}
+    </div>
+    <div class="form-row-3">
+      <div class="fg"><label>档位名称</label><input type="text" id="ptierLabel" placeholder="例如：进步奖(大)"></div>
+      <div class="fg"><label>最低涨幅 ≥</label><input type="number" step="0.1" id="ptierMin" placeholder="0.5"></div>
+      <div class="fg"><label>奖励金额 ₱</label><input type="number" step="0.01" id="ptierAmount" placeholder="200"></div>
+    </div>
+    <button class="btn btn-pri btn-sm" onclick="addProgressTier()">➕ 添加档位</button>
+  </div>`;
+
   h+=`<div class="sec-title">⚙️ 奖励档位配置 Reward Tiers</div><div class="card">
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
       ${rewardTiers.length?rewardTiers.map(t=>`<span class="badge" style="display:inline-flex;align-items:center;gap:6px">${esc(t.label)}（≥${t.min_score}分 → ₱${Number(t.reward_amount).toFixed(2)}）<span style="cursor:pointer;color:var(--bad)" onclick="delRewardTier('${t.id}')">✕</span></span>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无档位，先在下面添加</span>'}
@@ -1456,6 +1598,35 @@ async function rDashboard(el){
     <p style="font-size:.7rem;color:var(--text3);margin-top:8px">系统按分数从高到低比对，第一个"本周均分 ≥ 最低分数"命中的档位就是建议奖励。</p>
   </div>`;
   el.innerHTML=h;
+}
+async function loadSRewardConfig(){
+  try{const r=await sb.get('tks_s_reward_config','id=eq.1');
+    if(Array.isArray(r)&&r.length)sRewardConfig=r[0];
+  }catch(e){}
+}
+async function saveSRewardConfig(){
+  const d={monthly_progress_reward:parseFloat(document.getElementById('sCfgProgress').value)||0,
+    rescue_reward_per_store:parseFloat(document.getElementById('sCfgRescueAmt').value)||0,
+    rescue_threshold:parseFloat(document.getElementById('sCfgRescueThreshold').value)||4.0,
+    rescue_cap_count:parseInt(document.getElementById('sCfgRescueCap').value)||0,
+    updated_by:U.id};
+  const r=await sb.upsert('tks_s_reward_config',{id:1,...d});
+  if(Array.isArray(r)&&r.length){toast('✅ 已保存');rDashboard(document.getElementById('mainBody'));}
+  else toast('❌ 保存失败: '+(r&&r.message||JSON.stringify(r)));
+}
+async function addProgressTier(){
+  const label=document.getElementById('ptierLabel').value.trim();
+  const min=parseFloat(document.getElementById('ptierMin').value);
+  const amount=parseFloat(document.getElementById('ptierAmount').value);
+  if(!label||isNaN(min)||isNaN(amount)){toast('请填写完整的档位信息');return}
+  const r=await sb.post('tks_progress_tiers',{label,min_improvement:min,reward_amount:amount,created_by:U.id});
+  if(Array.isArray(r)&&r.length){toast('✅ 已添加');rDashboard(document.getElementById('mainBody'));}
+  else toast('❌ 添加失败: '+(r&&r.message||JSON.stringify(r)));
+}
+async function delProgressTier(id){
+  if(!confirm('删除这个进步奖档位？'))return;
+  await sb.del('tks_progress_tiers',{id});
+  rDashboard(document.getElementById('mainBody'));
 }
 function shiftDashWeek(n){dashWeekStart=addDays(dashWeekStart,n);rDashboard(document.getElementById('mainBody'));}
 async function addRewardTier(){
