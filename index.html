@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v20-scores-rewards-merged -->
+<!-- BUILD-VERSION: 2026-08-05-v21-role-system-S -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -390,8 +390,8 @@ async function initApp(){
   document.getElementById('loginPage').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('sfName').textContent=U.display_name;
-  document.getElementById('sfRole').textContent=U.role==='admin'?'管理员 Admin':(U.role==='secretary'?'秘书 Secretary':'员工 Staff');
-  await loadData();buildNav();go('home');
+  document.getElementById('sfRole').textContent=U.role==='admin'?'管理员 Admin':(U.role==='S'?'总负责人 S':(U.role==='secretary'?'秘书 Secretary':'员工 Staff'));
+  await loadData();buildNav();go(U.role==='staff'?'chat':'home');
   checkTodoReminder();
   todoReminderTimer=setInterval(checkTodoReminder,3*60*60*1000);
   requestNotifPermission();
@@ -404,14 +404,15 @@ async function loadData(){
   try{const r=await sb.rpc('tks_get_staff_list');staffList=Array.isArray(r)?r:[]}catch(e){staffList=[]}
   if(!Array.isArray(staffList))staffList=[];
 }
-function myStores(){return U.role==='admin'?stores:stores.filter(s=>s.assigned_to===U.id)}
+function isTop(){return U.role==='admin'||U.role==='S';}
+function myStores(){return isTop()?stores:stores.filter(s=>s.assigned_to===U.id)}
 
 /* ---- TODO REMINDER ---- */
 async function checkTodoReminder(){
   try{
     const all=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
     if(!Array.isArray(all)||all.length===0)return;
-    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin')));
+    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop())));
     if(mine.length===0)return;
     showReminderModal(mine);
   }catch(e){console.error('reminder error',e)}
@@ -438,21 +439,34 @@ function showReminderModal(todos){
 
 /* ---- NAV ---- */
 function buildNav(){
-  const a=U.role==='admin';
-  const canPw=a||U.role==='secretary'; // 密码库权限：仅 admin + secretary Password vault: admin + secretary only
-  const tabs=[
-    {id:'home',icon:'🏠',label:'首页 Home'},
-    {id:'chat',icon:'💬',label:'聊天 Chat'},
-    {id:'todos',icon:'📋',label:'待办 Todos'},
-    {id:'tasks',icon:'✅',label:'任务 Tasks'},
-    {id:'score',icon:'📊',label:'分数与奖励 Scores & Rewards'},
-    {id:'issues',icon:'⚠️',label:'问题 Issues'},
-    {id:'sop',icon:'📖',label:'SOP'},
-  ];
-  if(canPw)tabs.push({id:'passwords',icon:'🔐',label:'密码库 Passwords'});
-  if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
-  if(canPw)tabs.push({id:'attendance',icon:'🕐',label:'考勤登记 Attendance'});
-  if(a)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
+  const topTier=(U.role==='admin'||U.role==='S'); // 最顶层：admin + S，看到所有，能管用户/店铺
+  const canPw=topTier||U.role==='secretary'; // 密码库/开支：topTier + secretary（含被设成secretary的T/E）
+  const isPlainStaff=U.role==='staff';
+  let tabs;
+  if(isPlainStaff){
+    // 普通员工：白名单，只有这几个
+    tabs=[
+      {id:'chat',icon:'💬',label:'聊天 Chat'},
+      {id:'todos',icon:'📋',label:'待办 Todos'},
+      {id:'tasks',icon:'✅',label:'任务 Tasks'},
+      {id:'stores',icon:'🏪',label:'店铺 Stores'},
+      {id:'attendance',icon:'🕐',label:'考勤登记 Attendance'},
+    ];
+  }else{
+    tabs=[
+      {id:'home',icon:'🏠',label:'首页 Home'},
+      {id:'chat',icon:'💬',label:'聊天 Chat'},
+      {id:'todos',icon:'📋',label:'待办 Todos'},
+      {id:'tasks',icon:'✅',label:'任务 Tasks'},
+      {id:'score',icon:'📊',label:'分数与奖励 Scores & Rewards'},
+      {id:'issues',icon:'⚠️',label:'问题 Issues'},
+      {id:'sop',icon:'📖',label:'SOP'},
+    ];
+    if(canPw)tabs.push({id:'passwords',icon:'🔐',label:'密码库 Passwords'});
+    if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
+    if(canPw)tabs.push({id:'attendance',icon:'🕐',label:'考勤登记 Attendance'});
+    if(topTier)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
+  }
   document.getElementById('sideNav').innerHTML=tabs.map(t=>t.id==='_sep'?'<div class="nav-sep"></div>':
     `<button class="nav-item${t.id===currentTab?' active':''}" id="nav_${t.id}" onclick="go('${t.id}')"><span class="ni">${t.icon}</span>${t.label}${t.id==='chat'&&chatUnreadTotal>0?'<span class="nav-badge">'+chatUnreadTotal+'</span>':''}</button>`).join('');
   updateTodoBadge();
@@ -461,7 +475,7 @@ async function updateTodoBadge(){
   try{
     const all=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
     if(!Array.isArray(all))return;
-    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin')));
+    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop())));
     const nav=document.getElementById('nav_todos');if(!nav)return;
     const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
     if(mine.length>0)nav.innerHTML+='<span class="nav-badge">'+mine.length+'</span>';
@@ -485,13 +499,13 @@ async function rHome(el){
   const scores=await sb.get('tks_scores','order=record_date.desc&limit=200');
   const latest={},prev={};if(Array.isArray(scores))scores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
   const allTodos=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
-  const myTodos=Array.isArray(allTodos)?allTodos.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin'))):[];
+  const myTodos=Array.isArray(allTodos)?allTodos.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop()))):[];
 
   let h=`<div class="main-header"><h1>👋 ${U.display_name}</h1><p>${new Date().toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>`;
   h+=`<div class="stats-row">
     <div class="stat-card"><div class="stat-val ${myDone===myTotal&&myTotal>0?'sv-good':'sv-mid'}">${myDone}/${myTotal}</div><div class="stat-label">今日任务 My Tasks</div></div>
     <div class="stat-card" style="cursor:pointer" onclick="go('todos')"><div class="stat-val ${myTodos.length>0?'sv-bad':'sv-good'}">${myTodos.length}</div><div class="stat-label">待处理待办 Pending Todos</div></div>
-    <div class="stat-card"><div class="stat-val">${ms.length}</div><div class="stat-label">${U.role==='admin'?'全部店铺 All Stores':'我的店铺 My Stores'}</div></div>
+    <div class="stat-card"><div class="stat-val">${ms.length}</div><div class="stat-label">${isTop()?'全部店铺 All Stores':'我的店铺 My Stores'}</div></div>
     <div class="stat-card"><div class="stat-val">${stores.filter(s=>!s.assigned_to).length}</div><div class="stat-label">未指派 Unassigned</div></div>
   </div>`;
   h+=`<div class="quick-actions">
@@ -523,7 +537,7 @@ let todoFilter='mine';
 function renderTodoCard(t,compact=false){
   const statusLabel={open:'待认领 Open',claimed:'🔧 处理中 Working',submitted:'📝 待审核 Review',done:'✅ 已完成 Done',rejected:'↩️ 已退回 Rejected',archived:'已归档'};
   const statusCls={open:'tbadge-open',claimed:'tbadge-claimed',submitted:'tbadge-submitted',done:'tbadge-done',rejected:'tbadge-rejected',archived:'tbadge-done'};
-  const isAdmin=U.role==='admin';
+  const isAdmin=isTop();
   const isCreator=t.created_by===U.id||isAdmin;
   const isWorker=t.claimed_by===U.id||t.assigned_to===U.id;
 
@@ -600,7 +614,7 @@ async function rTodos(el){
   const topC=Object.entries(creatorMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const topD=Object.entries(workerMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
-  const mine=todos.filter(t=>!['done','archived'].includes(t.status)&&(t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||U.role==='admin'))));
+  const mine=todos.filter(t=>!['done','archived'].includes(t.status)&&(t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop()))));
   const open=todos.filter(t=>t.status==='open');
   const inprog=todos.filter(t=>t.status==='claimed'||t.status==='rejected');
   const submitted=todos.filter(t=>t.status==='submitted');
@@ -696,7 +710,7 @@ async function archiveTodo(id){
 /* ---- PASSWORDS ---- */
 let pwRevealed={};
 async function rPasswords(el){
-  if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  if(!(isTop()||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   let h=`<div class="main-header"><h1>🔐 密码账号库</h1><p>Password &amp; Account Vault &middot; 仅管理员和秘书可见 Admin &amp; Secretary only</p></div>`;
   h+=`<div class="card"><h3>➕ 新增账号 Add Account</h3>
     <div class="form-row" style="margin-top:14px">
@@ -800,11 +814,11 @@ function startExpBalancePoll(){
   },15000);
 }
 async function rExpenses(el){
-  if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  if(!(isTop()||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   await loadExpCategories();
   await loadRelatedPersons();
   startExpBalancePoll();
-  const isAdmin=U.role==='admin';
+  const isAdmin=isTop();
   let h=`<div class="main-header"><h1>💰 日常开支登记</h1><p>Daily Expense Log &middot; Sheet View</p></div>`;
 
   // 期初余额 + 实时余额
@@ -1015,7 +1029,7 @@ async function loadWorkers(){
   workers=Array.isArray(r)?r:[];
 }
 async function rAttendance(el){
-  if(!(U.role==='admin'||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  // 现在所有登录角色都能用考勤登记（admin/S/secretary/staff）
   await loadWorkers();
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
   let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记例外；正式员工填缺勤天数，兼职员工可直接填当天工资金额</p></div>`;
@@ -1202,7 +1216,7 @@ async function rTasks(el){
   const checks=await sb.get('tks_checklist','check_date=eq.'+today()+'&completed=eq.true');
   const ck=Array.isArray(checks)?checks:[];
   let h=`<div class="main-header"><h1>✅ 今日任务清单</h1><p>Today's Checklist — ${today()}</p></div>`;
-  if(U.role==='admin'){
+  if(isTop()){
     h+='<div class="sec-title">📋 团队概览 Team Overview</div>';
     const sm={};
     staffList.filter(s=>s.is_active).forEach(s=>{sm[s.id]={name:s.display_name,stores:stores.filter(st=>st.assigned_to===s.id),done:0,total:0}});
@@ -1215,7 +1229,7 @@ async function rTasks(el){
         h+=`<div class="staff-store-row"><span>🏪 ${esc(st.store_name)}</span><span class="progress ${pClass(d,TASKS.length)}">${d}/${TASKS.length}</span></div>`}
       h+='</div></div>';}
     h+='<div class="nav-sep" style="margin:20px 0;border-color:var(--border)"></div>';}
-  h+='<div class="sec-title">'+(U.role==='admin'?'我的任务 My Tasks':'我负责的店铺 My Assigned Stores')+'</div>';
+  h+='<div class="sec-title">'+(isTop()?'我的任务 My Tasks':'我负责的店铺 My Assigned Stores')+'</div>';
   if(!ms.length){h+='<div class="card" style="text-align:center;color:var(--text3);padding:40px">暂无指派的店铺<br>No stores assigned to you</div>';el.innerHTML=h;return}
   for(const store of ms){
     const storeCk=ck.filter(c=>c.completed_by===U.id&&c.store_id===store.id);
@@ -1262,17 +1276,18 @@ let sRewardConfig={monthly_progress_reward:300,rescue_reward_per_store:150,rescu
 
 let scoreHubTab='entry';
 function scoreHubNavHtml(){
-  const isAdmin=U.role==='admin';
+  const isTop=U.role==='admin'||U.role==='S';
   const tabs=[{id:'entry',label:'📝 录入 Entry'}];
-  if(!isAdmin)tabs.push({id:'myprogress',label:'🎯 我的进度 My Progress'});
-  if(isAdmin){tabs.push({id:'orders',label:'📦 订单登记 Orders'});tabs.push({id:'dashboard',label:'🏆 周度看板 Dashboard'});}
+  if(!isTop)tabs.push({id:'myprogress',label:'🎯 我的进度 My Progress'});
+  if(isTop){tabs.push({id:'orders',label:'📦 订单登记 Orders'});tabs.push({id:'dashboard',label:'🏆 周度看板 Dashboard'});}
   return `<div class="main-header"><h1>📊 分数与奖励</h1><p>Scores &amp; Rewards</p></div>
     <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">${tabs.map(t=>`<button class="btn ${scoreHubTab===t.id?'btn-pri':'btn-ghost'} btn-sm" onclick="switchScoreHub('${t.id}')">${t.label}</button>`).join('')}</div>`;
 }
 function switchScoreHub(id){scoreHubTab=id;rScoreHub(document.getElementById('mainBody'));}
 async function rScoreHub(el){
-  if(scoreHubTab==='myprogress'&&U.role==='admin')scoreHubTab='entry';
-  if((scoreHubTab==='orders'||scoreHubTab==='dashboard')&&U.role!=='admin')scoreHubTab='entry';
+  const isTop=U.role==='admin'||U.role==='S';
+  if(scoreHubTab==='myprogress'&&isTop)scoreHubTab='entry';
+  if((scoreHubTab==='orders'||scoreHubTab==='dashboard')&&!isTop)scoreHubTab='entry';
   if(scoreHubTab==='entry')await rScore(el);
   else if(scoreHubTab==='myprogress')await rMyProgress(el);
   else if(scoreHubTab==='orders')await rOrders(el);
@@ -1286,7 +1301,7 @@ async function rScore(el){
   let h=scoreHubNavHtml();
   if(Object.keys(latest).length>0){
     h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>负责人</th><th>总分</th><th>趋势</th><th>产品70%</th><th>物流15%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
-    const visibleStores=U.role==='admin'?stores:myStores();
+    const visibleStores=isTop()?stores:myStores();
     const ranked=visibleStores.filter(s=>latest[s.id]).sort((a,b)=>(latest[b.id].overall_score??-1)-(latest[a.id].overall_score??-1));
     for(const s of ranked){const sc=latest[s.id];const pv=prev[s.id];
       h+=`<tr><td><b>${esc(s.store_name)}</b></td><td>${s.assigned_to?staffName(s.assigned_to):'<span style="color:var(--text3)">未指派</span>'}</td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
@@ -1299,7 +1314,7 @@ async function rScore(el){
     h+='</tbody></table></div>';}
   h+=`<div class="card"><h3>➕ 录入分数 Record Score</h3>
     <div class="form-row" style="margin-top:16px">
-      <div class="fg"><label>店铺 Store *</label><select id="scStore" onchange="loadHistory()">${U.role==='admin'?storeOpts():myStoreOpts()}</select></div>
+      <div class="fg"><label>店铺 Store *</label><select id="scStore" onchange="loadHistory()">${isTop()?storeOpts():myStoreOpts()}</select></div>
       <div class="fg"><label>日期 Date</label><input type="date" id="scDate" value="${today()}"></div>
     </div>
     <div class="sec-title">主要分数 Main Scores (0-5)</div>
@@ -1404,7 +1419,7 @@ async function rMyProgress(el){
 /* ---- ORDER ENTRY (S) ---- */
 let ordersDate=today();
 async function rOrders(el){
-  if(U.role!=='admin'){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  if(!(U.role==='admin'||U.role==='S')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   const date=ordersDate;
   let h=scoreHubNavHtml()+`<p style="color:var(--text3);font-size:.85rem;margin-bottom:12px">Daily Orders per Store &middot; 用于按订单数加权计算周度均分，客服端看不到/改不了这一列</p>`;
   h+=`<div class="card" style="display:flex;align-items:center;gap:10px">
@@ -1456,7 +1471,7 @@ function matchTier(score){
   return null;
 }
 async function rDashboard(el){
-  if(U.role!=='admin'){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
+  if(!(U.role==='admin'||U.role==='S')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
   await loadRewardTiers();
   await loadProgressTiers();
   await loadSRewardConfig();
@@ -1773,7 +1788,7 @@ function formatDate(ts){if(!ts)return '';const d=new Date(ts);const t=new Date()
 
 async function rChat(el){
   // Get all DM channels for this user (or all for admin)
-  const isAdmin=U.role==='admin';
+  const isAdmin=isTop();
   let allMsgs=[];
   try{allMsgs=await sb.get('tks_messages','order=created_at.desc&limit=500');if(!Array.isArray(allMsgs))allMsgs=[];}catch(e){allMsgs=[];}
   // Get read status
@@ -1898,7 +1913,7 @@ async function loadChatMessages(){
   let msgs=[];
   try{msgs=await sb.get('tks_messages','channel_key=eq.'+chatChannel+'&order=created_at.asc&limit=200');if(!Array.isArray(msgs))msgs=[];}catch(e){msgs=[];}
   if(!msgs.length){container.innerHTML='<div class="chat-empty">暂无消息<br>No messages yet</div>';return;}
-  const isAdmin=U.role==='admin';
+  const isAdmin=isTop();
   let h='';let lastDate='';
   for(const m of msgs){
     const d=formatDate(m.created_at);
@@ -2050,6 +2065,14 @@ function playNotifSound(){
 /* ---- STORES ---- */
 async function rStores(el){
   await loadData();
+  if(U.role!=='admin'&&U.role!=='S'){
+    // 普通员工只读视图：只看店铺名单，不能管理
+    let hv=`<div class="main-header"><h1>🏪 店铺列表</h1><p>Store List（只读）</p></div>
+      <div class="card"><table class="score-table"><thead><tr><th>店铺名称</th><th>类目</th></tr></thead><tbody>
+      ${stores.map(s=>`<tr><td><b>${esc(s.store_name)}</b></td><td>${esc(s.category||'—')}</td></tr>`).join('')}
+      </tbody></table></div>`;
+    el.innerHTML=hv;return;
+  }
   let h=`<div class="main-header"><h1>🏪 店铺管理</h1><p>Store Management</p></div>
     <div class="card"><h3>➕ 添加店铺 Add Store</h3>
       <div class="form-row" style="margin-top:14px">
@@ -2080,6 +2103,7 @@ async function delStore(id,name){if(!confirm('删除 "'+name+'"？\n⚠️ 所�
 /* ---- USERS ---- */
 async function rUsers(el){
   const r=await sb.rpc('tks_list_users',{p_admin_id:U.id});const users=r.success?r.users:[];
+  const roleOpt=(cur)=>['staff','secretary','S','admin'].map(v=>`<option value="${v}" ${v===cur?'selected':''}>${({staff:'Staff 员工',secretary:'Secretary 秘书',S:'S 总负责人',admin:'Admin 管理员'})[v]}</option>`).join('');
   let h=`<div class="main-header"><h1>👥 用户管理</h1><p>User Management</p></div>
     <div class="card"><h3>➕ 创建新用户 Create User</h3>
       <div class="form-row" style="margin-top:14px">
@@ -2088,7 +2112,7 @@ async function rUsers(el){
       </div>
       <div class="form-row">
         <div class="fg"><label>密码 Password *</label><input type="text" id="nuPass"></div>
-        <div class="fg"><label>角色 Role</label><select id="nuRole"><option value="staff">Staff 员工</option><option value="secretary">Secretary 秘书</option><option value="admin">Admin 管理员</option></select></div>
+        <div class="fg"><label>角色 Role</label><select id="nuRole">${roleOpt('staff')}</select></div>
       </div>
       <button class="btn btn-pri" onclick="createUser()" style="max-width:300px">➕ 创建 Create</button>
     </div>
@@ -2097,10 +2121,10 @@ async function rUsers(el){
   for(const u of users){
     const self=u.id===U.id;const uStores=stores.filter(s=>s.assigned_to===u.id);
     h+=`<tr><td><b>${esc(u.display_name)}</b>${self?' (You)':''}<br><span style="font-size:.72rem;color:var(--text3)">@${esc(u.username)}</span></td>
-      <td><span class="badge ${u.role==='admin'?'':(u.role==='secretary'?'badge-secretary':'badge-staff')}">${u.role}</span></td>
+      <td>${self?`<span class="badge ${u.role==='admin'||u.role==='S'?'':(u.role==='secretary'?'badge-secretary':'badge-staff')}">${u.role}</span>`:`<select style="padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:.78rem" onchange="changeUserRole('${u.id}','${esc(u.display_name)}',this.value)">${roleOpt(u.role)}</select>`}</td>
       <td style="font-size:.8rem">${uStores.length?uStores.map(s=>esc(s.store_name)).join(', '):'<span style="color:var(--text3)">—</span>'}</td>
       <td>${u.is_active?'<span style="color:var(--ok)">✅</span>':'<span style="color:var(--bad)">🚫</span>'}</td>
-      <td>${self?'—':'<button class="btn btn-ghost btn-sm" onclick="resetPw(\''+u.id+'\',\''+esc(u.display_name)+'\')">🔑</button> <button class="btn btn-ghost btn-sm" onclick="toggleUsr(\''+u.id+'\','+u.is_active+',\''+esc(u.display_name)+'\')">'+(u.is_active?'🚫':'✅')+'</button>'}</td></tr>`}
+      <td>${self?'—':'<button class="btn btn-ghost btn-sm" onclick="resetPw(\''+u.id+'\',\''+esc(u.display_name)+'\')">🔑</button> <button class="btn btn-ghost btn-sm" onclick="toggleUsr(\''+u.id+'\','+u.is_active+',\''+esc(u.display_name)+'\')">'+(u.is_active?'🚫':'✅')+'</button> <button class="btn btn-ghost btn-sm" onclick="deleteUsr(\''+u.id+'\',\''+esc(u.display_name)+'\')">🗑️</button>'}</td></tr>`}
   h+=`</tbody></table></div>
     <div class="sec-title">修改自己的密码</div><div class="card">
       <div class="form-row"><div class="fg"><label>当前密码</label><input type="password" id="cpOld"></div>
@@ -2114,6 +2138,18 @@ async function createUser(){
   const res=await sb.rpc('tks_create_user',{p_admin_id:U.id,p_username:u,p_password:p,p_display_name:d,p_role:r});
   if(res.success){toast('✅ 用户已创建!');['nuName','nuDisplay','nuPass'].forEach(i=>document.getElementById(i).value='');await loadData();rUsers(document.getElementById('mainBody'));}
   else toast('❌ '+res.message);
+}
+async function changeUserRole(id,name,newRole){
+  if(!confirm('把 '+name+' 的角色改成 '+newRole+'？'))return;
+  const r=await sb.rpc('tks_update_user',{p_admin_id:U.id,p_user_id:id,p_role:newRole});
+  if(r&&r.success){toast('✅ 角色已更新');await loadData();rUsers(document.getElementById('mainBody'));}
+  else{toast('❌ '+(r&&r.message||'更新失败，数据库函数可能还不支持改角色，需要再加一段SQL'));await loadData();rUsers(document.getElementById('mainBody'));}
+}
+async function deleteUsr(id,name){
+  if(!confirm('真的要彻底删除 "'+name+'" 吗？\n这个人之前登记过的记录（开支/任务/聊天等）会保留，但会显示不出名字。\n如果只是想让这个人不能登录，用上面的"禁用"按钮更安全。\n\n确定要删除吗？'))return;
+  const r=await sb.rpc('tks_delete_user',{p_admin_id:U.id,p_user_id:id});
+  if(r&&r.success){toast('🗑️ 已删除');await loadData();rUsers(document.getElementById('mainBody'));}
+  else toast('❌ '+(r&&r.message||'删除失败'));
 }
 async function resetPw(id,name){const p=prompt('为 '+name+' 设置新密码:');if(!p)return;if(p.length<6){toast('密码至少6位');return}
   const r=await sb.rpc('tks_update_user',{p_admin_id:U.id,p_user_id:id,p_password:p});r.success?toast('✅ 密码已重置'):toast('❌ '+r.message);}
