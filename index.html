@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v22-expense-summary-fix -->
+<!-- BUILD-VERSION: 2026-08-05-v23-audit-editlog-anomaly -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -502,6 +502,26 @@ async function rHome(el){
   const myTodos=Array.isArray(allTodos)?allTodos.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop()))):[];
 
   let h=`<div class="main-header"><h1>👋 ${U.display_name}</h1><p>${new Date().toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>`;
+  if(isTop()){
+    const overdue=(Array.isArray(scores)?scores:[]).filter(s=>s.audit_flagged_at&&!s.audit_image_url&&!s.audit_resolved&&(Date.now()-new Date(s.audit_flagged_at).getTime())>2*60*60*1000);
+    if(overdue.length){
+      h+='<div class="card" style="background:#fef2f2;border:1px solid #fca5a5"><h3 style="color:var(--bad)">🚨 有截图逾期未上传（超过2小时）</h3>';
+      for(const o of overdue){const st=stores.find(x=>x.id===o.store_id);
+        h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+          <span><b>${esc(st?.store_name||'-')}</b>（${o.record_date}）· 抽中于 ${new Date(o.audit_flagged_at).toLocaleString()}</span>
+          <button class="btn btn-ghost btn-sm" onclick="resolveAudit('${o.store_id}','${o.record_date}')">✅ 已去后台核实，标记通过</button>
+        </div>`;
+      }
+      h+='</div>';
+    }
+  }
+  if(U.role==='admin'){
+    const picks=await ensureDailyAuditPicks('admin_audit',2);
+    if(picks.length){
+      h+='<div class="card" style="background:var(--pri-l);border:none"><h3>🔍 你今天的私下抽查名单（只有你能看到）</h3>'+
+        picks.map(id=>`<span class="badge" style="margin-right:6px">${esc(stores.find(s=>s.id===id)?.store_name||'-')}</span>`).join('')+'</div>';
+    }
+  }
   h+=`<div class="stats-row">
     <div class="stat-card"><div class="stat-val ${myDone===myTotal&&myTotal>0?'sv-good':'sv-mid'}">${myDone}/${myTotal}</div><div class="stat-label">今日任务 My Tasks</div></div>
     <div class="stat-card" style="cursor:pointer" onclick="go('todos')"><div class="stat-val ${myTodos.length>0?'sv-bad':'sv-good'}">${myTodos.length}</div><div class="stat-label">待处理待办 Pending Todos</div></div>
@@ -1312,6 +1332,21 @@ async function rScore(el){
   const allScores=await sb.get('tks_scores','order=record_date.desc&limit=200');
   const latest={},prev={};if(Array.isArray(allScores))allScores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
   let h=scoreHubNavHtml();
+  // 待补截图提醒（只看自己名下店铺，被抽中且还没传截图的）
+  if(!isTop()){
+    const myIds=myStores().map(s=>s.id);
+    const pending=(Array.isArray(allScores)?allScores:[]).filter(s=>myIds.includes(s.store_id)&&s.audit_flagged_at&&!s.audit_image_url&&!s.audit_resolved);
+    if(pending.length){
+      h+='<div class="card" style="background:#fff7ed;border:1px solid #fdba74"><h3>📸 今天有店铺被抽中核查，请补一张后台截图</h3>';
+      for(const p of pending){const st=stores.find(x=>x.id===p.store_id);
+        h+=`<div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+          <b>${esc(st?.store_name||'-')}</b>（${p.record_date}）
+          <input type="file" accept="image/*" onchange="uploadAuditScreenshot('${p.store_id}','${p.record_date}',this)">
+        </div>`;
+      }
+      h+='</div>';
+    }
+  }
   if(Object.keys(latest).length>0){
     h+='<div class="card"><h3>📈 全部店铺最新分数 All Stores Latest</h3><table class="score-table" style="margin-top:12px"><thead><tr><th>店铺</th><th>负责人</th><th>总分</th><th>趋势</th><th>产品70%</th><th>物流15%</th><th>客服15%</th><th>差评%</th><th>12H%</th><th>日期</th></tr></thead><tbody>';
     const visibleStores=isTop()?stores:myStores();
@@ -1350,16 +1385,64 @@ function calcSc(){
 }
 async function saveSc(){
   const sid=document.getElementById('scStore').value;if(!sid){toast('请选择店铺');return}
-  const d={store_id:sid,record_date:document.getElementById('scDate').value||today(),
-    overall_score:parseFloat(document.getElementById('sO').value)||null,
+  const date=document.getElementById('scDate').value||today();
+  const newScore=parseFloat(document.getElementById('sO').value)||null;
+  // 已有记录且分数变了 → 记一条修改留痕（客服自己看不到，admin/S能看）
+  try{
+    const existingArr=await sb.get('tks_scores','store_id=eq.'+sid+'&record_date=eq.'+date);
+    if(Array.isArray(existingArr)&&existingArr.length>0){
+      const old=existingArr[0];
+      if(old.overall_score!=null&&newScore!=null&&Number(old.overall_score)!==Number(newScore)){
+        await sb.rpc('tks_log_score_edit',{p_user_id:U.id,p_store_id:sid,p_record_date:date,p_old_score:old.overall_score,p_new_score:newScore});
+      }
+    }
+  }catch(e){}
+  const d={store_id:sid,record_date:date,
+    overall_score:newScore,
     product_satisfaction:parseFloat(document.getElementById('sP').value)||null,
     fulfillment:parseFloat(document.getElementById('sF').value)||null,
     customer_service:parseFloat(document.getElementById('sS').value)||null,
     recorded_by:U.id};
   try{const r=await sb.upsert('tks_scores',d);
-    if(Array.isArray(r)&&r.length>0){toast('✅ 分数已保存!');rScore(document.getElementById('mainBody'));}
+    if(Array.isArray(r)&&r.length>0){
+      toast('✅ 分数已保存!');
+      await maybeFlagAudit(sid,date);
+      rScore(document.getElementById('mainBody'));
+    }
     else toast('❌ 保存失败: '+(r.message||''));
   }catch(e){toast('❌ 网络错误')}
+}
+async function ensureDailyAuditPicks(kind,count){
+  const d=today();
+  let existing=await sb.get('tks_score_audit_picks','pick_date=eq.'+d+'&kind=eq.'+kind);
+  if(Array.isArray(existing)&&existing.length>0)return existing.map(x=>x.store_id);
+  const pool=stores.filter(s=>s.assigned_to);
+  const shuffled=[...pool].sort(()=>Math.random()-0.5);
+  const picks=shuffled.slice(0,Math.min(count,shuffled.length));
+  if(picks.length){await sb.post('tks_score_audit_picks',picks.map(s=>({pick_date:d,store_id:s.id,kind})));}
+  return picks.map(s=>s.id);
+}
+async function maybeFlagAudit(storeId,date){
+  const picks=await ensureDailyAuditPicks('staff_audit',2);
+  if(picks.includes(storeId)){
+    await sb.patch('tks_scores',{store_id:storeId,record_date:date},{audit_flagged_at:new Date().toISOString()});
+    toast('📸 这家店今天被抽中核查，麻烦补一张后台截图（下面会出现上传入口）');
+  }
+}
+async function uploadAuditScreenshot(storeId,date,inputEl){
+  if(!inputEl.files||!inputEl.files[0])return;
+  toast('📤 上传中...');
+  try{
+    const url=await uploadImage(inputEl.files[0],'score_audit');
+    await sb.patch('tks_scores',{store_id:storeId,record_date:date},{audit_image_url:url});
+    toast('✅ 截图已上传');
+    rScore(document.getElementById('mainBody'));
+  }catch(e){toast('❌ 上传失败: '+e.message);}
+}
+async function resolveAudit(storeId,date){
+  await sb.patch('tks_scores',{store_id:storeId,record_date:date},{audit_resolved:true,audit_resolved_by:U.id,audit_resolved_at:new Date().toISOString()});
+  toast('✅ 已标记通过');
+  go('home');
 }
 async function loadHistory(){
   const sid=document.getElementById('scStore').value;const c=document.getElementById('scoreHist');
@@ -1442,6 +1525,21 @@ async function rOrders(el){
   let scores=await sb.get('tks_scores','record_date=eq.'+date);
   if(!Array.isArray(scores))scores=[];
   const map={};scores.forEach(s=>{map[s.store_id]=s});
+  // 近14天(不含今天)历史订单量，用于算平均，做异常波动预警
+  const histFrom=addDays(date,-14),histTo=addDays(date,-1);
+  let histRows=await sb.get('tks_scores','record_date=gte.'+histFrom+'&record_date=lte.'+histTo+'&daily_orders=not.is.null');
+  if(!Array.isArray(histRows))histRows=[];
+  const histByStore={};
+  histRows.forEach(r=>{(histByStore[r.store_id]=histByStore[r.store_id]||[]).push(r.daily_orders);});
+  function anomalyNote(storeId,val){
+    const hist=histByStore[storeId];
+    if(val==null||!hist||hist.length<3)return '';
+    const avg=hist.reduce((a,b)=>a+b,0)/hist.length;
+    if(avg<=0)return '';
+    const diff=(val-avg)/avg;
+    if(Math.abs(diff)>=0.5)return `<span style="color:var(--bad);font-size:.72rem">⚠️ 平时约${avg.toFixed(0)}单，${diff>0?'偏高':'偏低'} ${Math.abs(diff*100).toFixed(0)}%</span>`;
+    return '';
+  }
   h+='<div class="card" style="overflow-x:auto"><table class="sheet-table"><thead><tr><th>店铺</th><th>负责人</th><th>今日总分（只读）</th><th>今日订单数</th><th>核对 ✓</th></tr></thead><tbody>';
   for(const s of stores){
     const sc=map[s.id];
@@ -1449,12 +1547,12 @@ async function rOrders(el){
       <td><b>${esc(s.store_name)}</b></td>
       <td>${s.assigned_to?staffName(s.assigned_to):'<span style="color:var(--text3)">未指派</span>'}</td>
       <td>${sc&&sc.overall_score!=null?sc.overall_score:'<span style="color:var(--text3)">未填</span>'}</td>
-      <td><input type="number" id="ord_${s.id}" value="${sc&&sc.daily_orders!=null?sc.daily_orders:''}" style="width:90px" onblur="saveOrder('${s.id}','${date}')"></td>
+      <td><input type="number" id="ord_${s.id}" value="${sc&&sc.daily_orders!=null?sc.daily_orders:''}" style="width:90px" onblur="saveOrder('${s.id}','${date}')"> ${anomalyNote(s.id,sc&&sc.daily_orders)}</td>
       <td style="text-align:center"><input type="checkbox" id="ver_${s.id}" ${sc&&sc.verified?'checked':''} onchange="toggleVerify('${s.id}','${date}',this.checked)"></td>
     </tr>`;
   }
   h+='</tbody></table></div>';
-  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">填完订单数点别处（自动保存）。核对 = 你对照 Seller Center 后台确认这行分数属实。</p>';
+  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">填完订单数点别处（自动保存）。核对 = 你对照 Seller Center 后台确认这行分数属实。⚠️ = 跟该店近14天平均相比波动超过50%，建议重点核对。</p>';
   el.innerHTML=h;
 }
 function changeOrdersDate(d){ordersDate=d;rOrders(document.getElementById('mainBody'));}
@@ -1625,6 +1723,24 @@ async function rDashboard(el){
     <button class="btn btn-pri btn-sm" onclick="addRewardTier()">➕ 添加档位</button>
     <p style="font-size:.7rem;color:var(--text3);margin-top:8px">系统按分数从高到低比对，第一个"本周均分 ≥ 最低分数"命中的档位就是建议奖励。</p>
   </div>`;
+
+  // 改分记录（客服自己看不到，只有admin/S能看，用于监督）
+  let editLog=await sb.rpc('tks_get_score_edit_log',{p_user_id:U.id});
+  if(!Array.isArray(editLog))editLog=[];
+  h+='<div class="sec-title">🕵️ 最近改分记录（客服看不到）</div><div class="card">';
+  if(!editLog.length){
+    h+='<div style="color:var(--text3);text-align:center;padding:10px">暂无改分记录</div>';
+  }else{
+    h+='<table class="score-table"><thead><tr><th>店铺</th><th>日期</th><th>改前</th><th>改后</th><th>改的人</th><th>时间</th></tr></thead><tbody>';
+    for(const l of editLog.slice(0,30)){
+      const st=stores.find(x=>x.id===l.store_id);
+      h+=`<tr><td><b>${esc(st?.store_name||'-')}</b></td><td>${l.record_date}</td>
+        <td>${l.old_score}</td><td>${l.new_score}</td><td>${staffName(l.edited_by)}</td>
+        <td style="font-size:.75rem;color:var(--text3)">${new Date(l.edited_at).toLocaleString()}</td></tr>`;
+    }
+    h+='</tbody></table>';
+  }
+  h+='</div>';
   el.innerHTML=h;
 }
 async function loadSRewardConfig(){
