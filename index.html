@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v23-audit-editlog-anomaly -->
+<!-- BUILD-VERSION: 2026-08-05-v24-fix-scores-upsert-conflict -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -283,6 +283,7 @@ const sb={
   async post(t,d){const r=await fetch(SB_URL+'/rest/v1/'+t,{method:'POST',headers:{...sb.h,'Prefer':'return=representation'},body:JSON.stringify(d)});return r.json()},
   async patch(t,m,d){const p=Object.entries(m).map(([k,v])=>k+'=eq.'+v).join('&');const r=await fetch(SB_URL+'/rest/v1/'+t+'?'+p,{method:'PATCH',headers:{...sb.h,'Prefer':'return=representation'},body:JSON.stringify(d)});return r.json()},
   async upsert(t,d){const r=await fetch(SB_URL+'/rest/v1/'+t,{method:'POST',headers:{...sb.h,'Prefer':'return=representation,resolution=merge-duplicates'},body:JSON.stringify(d)});return r.json()},
+  async upsertOn(t,onConflict,d){const r=await fetch(SB_URL+'/rest/v1/'+t+'?on_conflict='+onConflict,{method:'POST',headers:{...sb.h,'Prefer':'return=representation,resolution=merge-duplicates'},body:JSON.stringify(d)});return r.json()},
   async del(t,m){const p=Object.entries(m).map(([k,v])=>k+'=eq.'+v).join('&');return fetch(SB_URL+'/rest/v1/'+t+'?'+p,{method:'DELETE',headers:sb.h})}
 };
 
@@ -1403,7 +1404,7 @@ async function saveSc(){
     fulfillment:parseFloat(document.getElementById('sF').value)||null,
     customer_service:parseFloat(document.getElementById('sS').value)||null,
     recorded_by:U.id};
-  try{const r=await sb.upsert('tks_scores',d);
+  try{const r=await sb.upsertOn('tks_scores','store_id,record_date',d);
     if(Array.isArray(r)&&r.length>0){
       toast('✅ 分数已保存!');
       await maybeFlagAudit(sid,date);
@@ -1560,12 +1561,12 @@ async function saveOrder(storeId,date){
   const inp=document.getElementById('ord_'+storeId);
   const v=inp.value.trim();
   const orders=v===''?null:parseInt(v);
-  const r=await sb.upsert('tks_scores',{store_id:storeId,record_date:date,daily_orders:orders,orders_recorded_by:U.id});
+  const r=await sb.upsertOn('tks_scores','store_id,record_date',{store_id:storeId,record_date:date,daily_orders:orders,orders_recorded_by:U.id});
   if(Array.isArray(r)&&r.length>0)toast('✅ 已保存');
   else toast('❌ 保存失败: '+(r&&r.message||JSON.stringify(r)));
 }
 async function toggleVerify(storeId,date,checked){
-  const r=await sb.upsert('tks_scores',{store_id:storeId,record_date:date,verified:checked,verified_by:checked?U.id:null,verified_at:checked?new Date().toISOString():null});
+  const r=await sb.upsertOn('tks_scores','store_id,record_date',{store_id:storeId,record_date:date,verified:checked,verified_by:checked?U.id:null,verified_at:checked?new Date().toISOString():null});
   if(Array.isArray(r)&&r.length>0)toast(checked?'✅ 已核对':'已取消核对');
   else toast('❌ 操作失败: '+(r&&r.message||JSON.stringify(r)));
 }
