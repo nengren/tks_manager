@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v24-fix-scores-upsert-conflict -->
+<!-- BUILD-VERSION: 2026-08-05-v25-expense-status-filter-bulk-approve -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -807,7 +807,7 @@ async function delPassword(id,name){
 }
 
 /* ---- EXPENSES ---- */
-let expCategories=[],expRelatedPersons=[],expFilter={from:'',to:'',cat:'',kw:''},expPendingImg=null,showInactiveCat=false,showInactivePerson=false,expEditingId=null,expRowsCache={};
+let expCategories=[],expRelatedPersons=[],expFilter={from:'',to:'',cat:'',kw:'',status:'all'},expPendingImg=null,showInactiveCat=false,showInactivePerson=false,expEditingId=null,expRowsCache={};
 async function loadExpCategories(){
   try{const r=await sb.rpc('tks_get_expense_categories',{p_user_id:U.id});expCategories=Array.isArray(r)?r:[]}
   catch(e){expCategories=[]}
@@ -906,6 +906,11 @@ async function rExpenses(el){
       <div class="fg"><label>类别</label><select id="fltCat">${expCatOpts(expFilter.cat)}</select></div>
       <div class="fg"><label>关键词</label><input type="text" id="fltKw" value="${esc(expFilter.kw)}" placeholder="备注/关联人..."></div>
     </div>
+    <div class="fg" style="max-width:200px"><label>审核状态</label><select id="fltStatus">
+      <option value="all"${expFilter.status==='all'?' selected':''}>全部</option>
+      <option value="pending"${expFilter.status==='pending'?' selected':''}>待审</option>
+      <option value="approved"${expFilter.status==='approved'?' selected':''}>已审</option>
+    </select></div>
     <button class="btn btn-ghost btn-sm" onclick="applyExpFilter()">🔍 查询</button>
     <button class="btn btn-ghost btn-sm" onclick="clearExpFilter()">✕ 清空</button>
   </div>`;
@@ -914,30 +919,35 @@ async function rExpenses(el){
   try{rows=await sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:expFilter.from||null,p_date_to:expFilter.to||null,p_category_id:expFilter.cat||null,p_keyword:expFilter.kw||null})}catch(e){rows={message:'network error: '+e.message}}
 
   if(Array.isArray(rows)){
+    if(expFilter.status==='pending')rows=rows.filter(r=>!r.approved);
+    else if(expFilter.status==='approved')rows=rows.filter(r=>r.approved);
     const sumIncome=rows.reduce((a,r)=>a+(Number(r.income)||0),0);
     const sumExpense=rows.reduce((a,r)=>a+(Number(r.expense)||0),0);
-    const hasFilter=expFilter.from||expFilter.to||expFilter.cat||expFilter.kw;
-    h+=`<div class="card" style="display:flex;gap:28px;flex-wrap:wrap">
+    const hasFilter=expFilter.from||expFilter.to||expFilter.cat||expFilter.kw||expFilter.status!=='all';
+    h+=`<div class="card" style="display:flex;gap:28px;flex-wrap:wrap;align-items:center">
       <div><div class="sub-label">${hasFilter?'筛选结果':'当前列表'} · 笔数</div><div style="font-size:1.3rem;font-weight:700">${rows.length}</div></div>
       <div><div class="sub-label">总收入</div><div style="font-size:1.3rem;font-weight:700;color:var(--ok)">+${sumIncome.toFixed(2)}</div></div>
       <div><div class="sub-label">总支出</div><div style="font-size:1.3rem;font-weight:700;color:var(--bad)">-${sumExpense.toFixed(2)}</div></div>
       <div><div class="sub-label">净额（收入-支出）</div><div style="font-size:1.3rem;font-weight:700;color:${sumIncome-sumExpense>=0?'var(--ok)':'var(--bad)'}">${(sumIncome-sumExpense>=0?'+':'')+(sumIncome-sumExpense).toFixed(2)}</div></div>
+      ${isAdmin?`<button class="btn btn-pri btn-sm" onclick="bulkApproveSelected()">✅ 批量审核选中 (<span id="expSelCount">0</span>)</button>`:''}
     </div>`;
   }
 
   h+='<div class="card" style="overflow-x:auto"><table class="sheet-table"><thead><tr>'+
+    (isAdmin?'<th><input type="checkbox" id="selAllExp" onchange="toggleSelectAllExp(this.checked)"></th>':'')+
     '<th>日期</th><th>类别</th><th>收入</th><th>支出</th><th>关联人</th><th>登记人</th><th>凭证</th><th>审核</th><th>余额</th><th>备注</th><th></th></tr></thead><tbody>';
 
   if(!Array.isArray(rows)){
     const errText=esc((rows&&(rows.message||rows.error_description||rows.hint||rows.details))||JSON.stringify(rows));
-    h+='<tr><td colspan="11" style="color:var(--bad)">⚠️ 无法加载 — 数据库返回：<br><code style="font-size:.75rem;white-space:pre-wrap">'+errText+'</code></td></tr>';
+    h+='<tr><td colspan="12" style="color:var(--bad)">⚠️ 无法加载 — 数据库返回：<br><code style="font-size:.75rem;white-space:pre-wrap">'+errText+'</code></td></tr>';
   }else if(rows.length===0){
-    h+='<tr><td colspan="11" style="color:var(--text3);text-align:center">暂无记录</td></tr>';
+    h+='<tr><td colspan="12" style="color:var(--text3);text-align:center">暂无记录</td></tr>';
   }else{
     expRowsCache={};
     for(const r of rows){
       expRowsCache[r.id]=r;
       h+=`<tr class="${r.approved?'exp-approved':''}">
+        ${isAdmin?`<td><input type="checkbox" class="exp-row-check" data-id="${r.id}" data-approved="${r.approved}" onchange="updateExpSelCount()"></td>`:''}
         <td>${r.expense_date}</td>
         <td>${esc(r.category_name||'—')}</td>
         <td style="color:var(--ok)">${r.income>0?'+'+Number(r.income).toFixed(2):''}</td>
@@ -955,11 +965,30 @@ async function rExpenses(el){
   h+='</tbody></table></div>';
   el.innerHTML=h;
 }
-function applyExpFilter(){
-  expFilter={from:document.getElementById('fltFrom').value,to:document.getElementById('fltTo').value,cat:document.getElementById('fltCat').value,kw:document.getElementById('fltKw').value.trim()};
+function toggleSelectAllExp(checked){
+  document.querySelectorAll('.exp-row-check').forEach(cb=>cb.checked=checked);
+  updateExpSelCount();
+}
+function updateExpSelCount(){
+  const n=document.querySelectorAll('.exp-row-check:checked').length;
+  const el=document.getElementById('expSelCount');
+  if(el)el.textContent=n;
+}
+async function bulkApproveSelected(){
+  const checked=[...document.querySelectorAll('.exp-row-check:checked')];
+  if(!checked.length){toast('请先勾选要审核的记录');return}
+  const toApprove=checked.filter(cb=>cb.dataset.approved==='false');
+  if(!toApprove.length){toast('勾选的都已经是"已审"状态了');return}
+  toast('⏳ 批量审核中...');
+  await Promise.all(toApprove.map(cb=>sb.rpc('tks_approve_expense',{p_user_id:U.id,p_id:cb.dataset.id,p_approved:true})));
+  toast('✅ 已批量审核 '+toApprove.length+' 条');
   rExpenses(document.getElementById('mainBody'));
 }
-function clearExpFilter(){expFilter={from:'',to:'',cat:'',kw:''};rExpenses(document.getElementById('mainBody'));}
+function applyExpFilter(){
+  expFilter={from:document.getElementById('fltFrom').value,to:document.getElementById('fltTo').value,cat:document.getElementById('fltCat').value,kw:document.getElementById('fltKw').value.trim(),status:document.getElementById('fltStatus').value};
+  rExpenses(document.getElementById('mainBody'));
+}
+function clearExpFilter(){expFilter={from:'',to:'',cat:'',kw:'',status:'all'};rExpenses(document.getElementById('mainBody'));}
 async function setOpeningBalance(){
   const v=parseFloat(document.getElementById('openingInput').value);
   if(isNaN(v)){toast('请输入有效金额');return}
