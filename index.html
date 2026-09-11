@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v37-attendance-layout-collapse-roster -->
+<!-- BUILD-VERSION: 2026-08-05-v38-worker-import-export -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1125,10 +1125,11 @@ async function rAttendance(el){
     ${showInactiveWorkers?`<div style="margin-bottom:10px">${inactiveWorkers.map(w=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;opacity:.55"><span style="flex:1;text-decoration:line-through">${esc(w.name)} <span style="font-size:.65rem">(加入于${w.created_at?w.created_at.slice(0,10):'-'})</span></span><button class="btn btn-ghost btn-sm" onclick="reactivateWorker('${w.id}')">启用</button></div>`).join('')}</div>`:''}`:''}
     <div class="form-row">
       <div class="fg"><label>单个添加 Add One</label><div style="display:flex;gap:8px"><input type="text" id="newWorkerName" placeholder="姓名"><button class="btn btn-ghost btn-sm" onclick="addWorker()">➕</button></div></div>
-      <div class="fg"><label>批量添加 Bulk Add（每行一个名字，直接从表格里复制粘贴）</label>
-        <div style="display:flex;gap:8px"><textarea id="workerBulk" placeholder="Shiela&#10;BJ&#10;Mico&#10;..." style="flex:1;min-height:40px"></textarea><button class="btn btn-pri btn-sm" onclick="bulkAddWorkers()">📋 批量添加</button></div></div>
+      <div class="fg"><label>批量导入 Bulk Import（直接从 Excel/表格复制粘贴，只认第一列，其他列自动忽略）</label>
+        <div style="display:flex;gap:8px"><textarea id="workerBulk" placeholder="Shiela&#10;BJ&#10;Mico&#10;..." style="flex:1;min-height:40px"></textarea><button class="btn btn-pri btn-sm" onclick="bulkAddWorkers()">📥 批量导入</button></div></div>
     </div>
-    <p style="font-size:.7rem;color:var(--text3);margin-top:6px">停用不会删除历史考勤记录，随时可以重新启用；如果两个人同名，会自动在名字后面标注加入日期用来区分。</p>
+    <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" onclick="exportWorkers()">📤 导出当前花名册 (CSV)</button></div>
+    <p style="font-size:.7rem;color:var(--text3);margin-top:6px">停用不会删除历史考勤记录，随时可以重新启用；如果两个人同名，会自动在名字后面标注加入日期用来区分；已经在花名册里的名字，导入时会自动跳过，不会重复。</p>
     `:''}
   </div>`;
 
@@ -1294,11 +1295,33 @@ async function addWorker(){
 }
 async function bulkAddWorkers(){
   const raw=document.getElementById('workerBulk').value||'';
-  const names=[...new Set(raw.split(/[\n\r,\t]+/).map(s=>s.trim()).filter(Boolean))];
-  if(names.length===0){toast('请输入至少一个姓名（一行一个，或用逗号分隔）');return}
-  const r=await sb.post('tks_workers',names.map(n=>({name:n,created_by:U.id})));
-  if(Array.isArray(r)){toast('✅ 已添加 '+r.length+' 人');document.getElementById('workerBulk').value='';rAttendance(document.getElementById('mainBody'));}
-  else toast('❌ 添加失败: '+(r.message||'请检查数据表是否已创建'));
+  // 按行分割，每行只取第一列（应对从Excel多列一起复制的情况），逗号/制表符都当列分隔符
+  const rows=raw.split(/\r?\n/).map(line=>line.split(/[\t,]/)[0].trim()).filter(Boolean);
+  const names=[...new Set(rows)];
+  if(names.length===0){toast('请粘贴至少一行姓名（每行一个，第一列会被识别为姓名）');return}
+  const existingLower=new Set(allWorkers.map(w=>w.name.toLowerCase()));
+  const toAdd=names.filter(n=>!existingLower.has(n.toLowerCase()));
+  const skipped=names.length-toAdd.length;
+  if(!toAdd.length){toast('这些名字都已经在花名册里了（含已停用的）');return}
+  const r=await sb.post('tks_workers',toAdd.map(n=>({name:n,created_by:U.id})));
+  if(Array.isArray(r)){
+    toast('✅ 已导入 '+r.length+' 人'+(skipped?'，跳过 '+skipped+' 个已存在的名字':''));
+    document.getElementById('workerBulk').value='';
+    rAttendance(document.getElementById('mainBody'));
+  }else toast('❌ 导入失败: '+(r.message||JSON.stringify(r)));
+}
+function exportWorkers(){
+  if(!workers.length){toast('花名册是空的，没什么可导出的');return}
+  const header='序号,姓名,兼职,加入日期';
+  const lines=workers.map((w,i)=>[i+1,w.name,w.is_parttime?'是':'否',w.created_at?w.created_at.slice(0,10):''].join(','));
+  const csv='\uFEFF'+header+'\n'+lines.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='员工花名册_'+today()+'.csv';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('✅ 已导出');
 }
 async function delWorker(id,name){
   if(!confirm('停用员工 "'+name+'"？\n考勤历史记录会保留，不会删除；这个人以后不会出现在花名册和格子里，需要的话随时可以重新启用。'))return;
