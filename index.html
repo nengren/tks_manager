@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v26-expense-note-column-width -->
+<!-- BUILD-VERSION: 2026-08-05-v27-attendance-freetext-nav-softdelete -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1083,36 +1083,47 @@ async function delExpense(id){
 }
 
 /* ---- ATTENDANCE ---- */
-let workers=[],attWeekStart=mondayOf(today()),attSelected=new Set(),attMap={},attOpenKey=null;
-function attFmt(val){return val==null?'':(Math.abs(val)>=100?String(val):('-'+val+'d'));}
+let workers=[],allWorkers=[],attWeekStart=mondayOf(today()),attSelected=new Set(),attMap={},attOpenKey=null,showInactiveWorkers=false;
+function attFmt(val){
+  if(val==null||val==='')return '';
+  const s=String(val).trim();
+  if(/^-?\d+(\.\d+)?$/.test(s)){const n=parseFloat(s);return Math.abs(n)>=100?s:('-'+Math.abs(n)+'d');}
+  return esc(s);
+}
 function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
 function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return fmtDate(dt);}
 async function loadWorkers(){
-  const r=await sb.get('tks_workers','is_active=eq.true&order=sort_order,name');
-  workers=Array.isArray(r)?r:[];
+  const r=await sb.get('tks_workers','order=sort_order,name');
+  allWorkers=Array.isArray(r)?r:[];
+  workers=allWorkers.filter(w=>w.is_active);
 }
 async function rAttendance(el){
   // 现在所有登录角色都能用考勤登记（admin/S/secretary/staff）
   await loadWorkers();
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
-  let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记例外；正式员工填缺勤天数，兼职员工可直接填当天工资金额</p></div>`;
+  let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 默认全部出勤，只需标记例外；格子可以填数字（缺勤天数/工资）也可以填文字（absent/half day/rest day）</p></div>`;
 
   // 员工花名册管理（拖拽排序，跟打卡机顺序一致）
+  const nameCounts={};allWorkers.forEach(w=>{nameCounts[w.name]=(nameCounts[w.name]||0)+1;});
+  const inactiveWorkers=allWorkers.filter(w=>!w.is_active);
   h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length}) · 直接拖动名字调整顺序 Drag to reorder</h3>
     <div style="max-height:320px;overflow-y:auto;margin:10px 0" id="workerList">
     ${workers.length?workers.map((w,i)=>`<div class="worker-row" draggable="true" data-id="${w.id}" ondragstart="workerDragStart(event)" ondragover="workerDragOver(event)" ondragleave="workerDragLeave(event)" ondrop="workerDrop(event)" ondragend="workerDragEnd(event)">
         <span class="worker-drag-handle">⠿</span>
         <span style="color:var(--text3);font-size:.72rem;width:24px">${i+1}</span>
-        <span style="flex:1">${esc(w.name)}${w.is_parttime?' <span class=\"badge badge-secretary\" style=\"font-size:.65rem\">兼职 PT</span>':''}</span>
+        <span style="flex:1">${esc(w.name)}${w.is_parttime?' <span class=\"badge badge-secretary\" style=\"font-size:.65rem\">兼职 PT</span>':''}${nameCounts[w.name]>1?` <span style="color:var(--text3);font-size:.65rem">(加入于${w.created_at?w.created_at.slice(0,10):'-'})</span>`:''}</span>
         <label style="font-size:.7rem;color:var(--text3);display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" ${w.is_parttime?'checked':''} onchange="event.stopPropagation();toggleParttime('${w.id}',this.checked)">兼职</label>
-        <span style="cursor:pointer;color:var(--bad);padding:0 6px" onclick="delWorker('${w.id}','${esc(w.name)}')">✕</span>
+        <span style="cursor:pointer;color:var(--pri);font-size:.72rem;padding:0 6px" onclick="delWorker('${w.id}','${esc(w.name)}')">停用</span>
       </div>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无员工，先在下面添加</span>'}
     </div>
+    ${inactiveWorkers.length?`<div style="font-size:.75rem;color:var(--pri);cursor:pointer;margin-bottom:8px" onclick="showInactiveWorkers=!showInactiveWorkers;rAttendance(document.getElementById('mainBody'))">${showInactiveWorkers?'▲ 收起已停用':'▼ 查看已停用 ('+inactiveWorkers.length+')'}</div>
+    ${showInactiveWorkers?`<div style="margin-bottom:10px">${inactiveWorkers.map(w=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;opacity:.55"><span style="flex:1;text-decoration:line-through">${esc(w.name)} <span style="font-size:.65rem">(加入于${w.created_at?w.created_at.slice(0,10):'-'})</span></span><button class="btn btn-ghost btn-sm" onclick="reactivateWorker('${w.id}')">启用</button></div>`).join('')}</div>`:''}`:''}
     <div class="form-row">
       <div class="fg"><label>单个添加 Add One</label><div style="display:flex;gap:8px"><input type="text" id="newWorkerName" placeholder="姓名"><button class="btn btn-ghost btn-sm" onclick="addWorker()">➕</button></div></div>
       <div class="fg"><label>批量添加 Bulk Add（每行一个名字，直接从表格里复制粘贴）</label>
         <div style="display:flex;gap:8px"><textarea id="workerBulk" placeholder="Shiela&#10;BJ&#10;Mico&#10;..." style="flex:1;min-height:40px"></textarea><button class="btn btn-pri btn-sm" onclick="bulkAddWorkers()">📋 批量添加</button></div></div>
     </div>
+    <p style="font-size:.7rem;color:var(--text3);margin-top:6px">停用不会删除历史考勤记录，随时可以重新启用；如果两个人同名，会自动在名字后面标注加入日期用来区分。</p>
   </div>`;
 
   // 周导航
@@ -1122,11 +1133,11 @@ async function rAttendance(el){
     <button class="btn btn-ghost btn-sm" onclick="shiftAttWeek(7)">下一周 →</button>
   </div>`;
 
-  // 批量填入工具条：先勾选一片格子（Shift/Cmd+点击），填一个数，一键套用到所有选中的格子——比复制粘贴更快更不容易错
+  // 批量填入工具条：先勾选一片格子（Shift/Cmd+点击），填一个值（数字或文字），一键套用到所有选中的格子
   h+=`<div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <b style="font-size:.82rem">🖊️ 批量填入 Bulk Fill</b>
-    <span style="font-size:.75rem;color:var(--text3)">Shift+点击 多选格子 → 填数字 → 套用到全部选中</span>
-    <input type="number" step="0.01" id="bulkFillVal" placeholder="数值" style="width:100px">
+    <span style="font-size:.75rem;color:var(--text3)">Shift+点击 多选格子 → 填数字或文字 → 套用到全部选中</span>
+    <input type="text" id="bulkFillVal" placeholder="数字或文字，比如 absent" style="width:140px">
     <button class="btn btn-pri btn-sm" onclick="applyBulkFill()">✅ 套用到已选 (${attSelected.size})</button>
     <button class="btn btn-ghost btn-sm" onclick="clearAttSelection()">✕ 清空所选</button>
   </div>`;
@@ -1158,7 +1169,7 @@ async function rAttendance(el){
     }
   }
   h+='</tbody></table></div>';
-  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。点击格子直接变成输入框：打字覆盖，回车保存，删空+回车=恢复正常，Esc=取消。Shift+点击 = 多选，配合上面"批量填入"一次填一片。数字≥100 自动按金额显示（纯数字），小于100 按缺勤天数显示（-0.5d 这种）。</p>';
+  h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">空白格 = 正常出勤。点击格子直接变成输入框：打字（数字或文字都行）覆盖，回车保存，删空+回车=恢复正常，Esc=取消。方向键 ↑↓←→ 保存并跳到相邻格子，跟 Excel 一样。Shift+点击 = 多选，配合上面"批量填入"一次填一片。</p>';
   el.innerHTML=h;
 }
 function shiftAttWeek(n){attWeekStart=addDays(attWeekStart,n);attSelected.clear();rAttendance(document.getElementById('mainBody'));}
@@ -1173,15 +1184,13 @@ function attCellClick(e,workerId,date){
 }
 function clearAttSelection(){attSelected.clear();rAttendance(document.getElementById('mainBody'));}
 async function applyBulkFill(){
-  const v=document.getElementById('bulkFillVal').value;
-  if(v===''){toast('请先填一个数值');return}
-  const n=parseFloat(v);
-  if(isNaN(n)){toast('请输入有效数字');return}
+  const v=document.getElementById('bulkFillVal').value.trim();
+  if(v===''){toast('请先填一个值');return}
   if(attSelected.size===0){toast('请先 Shift+点击 选几个格子');return}
   const keys=[...attSelected];
   await Promise.all(keys.map(k=>{
     const idx=k.lastIndexOf('_');
-    return setAttCell(k.slice(0,idx),k.slice(idx+1),String(n),true);
+    return setAttCell(k.slice(0,idx),k.slice(idx+1),v,true);
   }));
   attSelected.clear();
   toast('✅ 已套用到 '+keys.length+' 个格子');
@@ -1199,13 +1208,33 @@ function openAttCell(workerId,date){
   const cell=document.getElementById('cell_'+key);
   if(!cell)return;
   const cur=attMap[key];
-  cell.innerHTML=`<input type="number" step="0.01" id="input_${key}" value="${cur!=null?cur:''}" style="width:100%;border:none;outline:2px solid var(--pri);text-align:center;font-size:.78rem;padding:2px;border-radius:4px" onkeydown="attInputKey(event,'${workerId}','${date}')" onblur="attInputBlur('${workerId}','${date}')">`;
+  cell.innerHTML=`<input type="text" id="input_${key}" value="${cur!=null?esc(String(cur)):''}" style="width:100%;border:none;border-bottom:2px solid var(--pri);background:transparent;text-align:center;font-size:.78rem;padding:2px" onkeydown="attInputKey(event,'${workerId}','${date}')" onblur="attInputBlur('${workerId}','${date}')">`;
   const inp=document.getElementById('input_'+key);
   inp.focus();inp.select();
+}
+function moveAttCell(workerId,date,dirKey){
+  const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
+  const wIdx=workers.findIndex(w=>w.id===workerId);
+  const dIdx=weekDates.indexOf(date);
+  let newW=wIdx,newD=dIdx;
+  if(dirKey==='ArrowRight')newD=Math.min(dIdx+1,weekDates.length-1);
+  if(dirKey==='ArrowLeft')newD=Math.max(dIdx-1,0);
+  if(dirKey==='ArrowDown')newW=Math.min(wIdx+1,workers.length-1);
+  if(dirKey==='ArrowUp')newW=Math.max(wIdx-1,0);
+  if(newW===wIdx&&newD===dIdx)return;
+  openAttCell(workers[newW].id,weekDates[newD]);
 }
 function attInputKey(e,workerId,date){
   if(e.key==='Enter'){e.preventDefault();e.target.blur();}
   else if(e.key==='Escape'){e.preventDefault();e.target.dataset.cancel='1';attOpenKey=null;closeAttCell(workerId+'_'+date);}
+  else if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+    e.preventDefault();
+    const val=e.target.value.trim();
+    e.target.dataset.cancel='1';
+    attMap[workerId+'_'+date]=val||null;
+    setAttCell(workerId,date,val,true);
+    moveAttCell(workerId,date,e.key);
+  }
 }
 function attInputBlur(workerId,date){
   const key=workerId+'_'+date;
@@ -1239,12 +1268,12 @@ async function toggleParttime(id,checked){
 async function setAttCell(workerId,date,val,silent){
   try{
     let r;
-    if(!val||parseFloat(val)===0){
+    if(!val||val==='0'){
       r=await fetch(SB_URL+'/rest/v1/tks_attendance?worker_id=eq.'+workerId+'&date=eq.'+date,{method:'DELETE',headers:sb.h});
     }else{
       r=await fetch(SB_URL+'/rest/v1/tks_attendance?on_conflict=worker_id,date',{
         method:'POST',headers:{...sb.h,'Prefer':'return=representation,resolution=merge-duplicates'},
-        body:JSON.stringify({worker_id:workerId,date:date,days_absent:parseFloat(val),recorded_by:U.id})
+        body:JSON.stringify({worker_id:workerId,date:date,days_absent:val,recorded_by:U.id})
       });
     }
     if(!r.ok){const t=await r.text();toast('❌ 保存失败: '+t);return}
@@ -1267,10 +1296,14 @@ async function bulkAddWorkers(){
   else toast('❌ 添加失败: '+(r.message||'请检查数据表是否已创建'));
 }
 async function delWorker(id,name){
-  if(!confirm('删除员工 "'+name+'"？相关考勤记录也会一并删除。'))return;
-  await sb.del('tks_attendance',{worker_id:id});
-  await sb.del('tks_workers',{id});
-  toast('🗑️ 已删除');rAttendance(document.getElementById('mainBody'));
+  if(!confirm('停用员工 "'+name+'"？\n考勤历史记录会保留，不会删除；这个人以后不会出现在花名册和格子里，需要的话随时可以重新启用。'))return;
+  await sb.patch('tks_workers',{id},{is_active:false});
+  toast('已停用');rAttendance(document.getElementById('mainBody'));
+}
+async function reactivateWorker(id){
+  await sb.patch('tks_workers',{id},{is_active:true});
+  toast('✅ 已启用');
+  rAttendance(document.getElementById('mainBody'));
 }
 
 /* ---- TASKS ---- */
