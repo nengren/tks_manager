@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v25-expense-status-filter-bulk-approve -->
+<!-- BUILD-VERSION: 2026-08-05-v26-expense-note-column-width -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -957,7 +957,7 @@ async function rExpenses(el){
         <td>${r.image_url?`<img class="exp-thumb" src="${r.image_url}" onclick="window.open('${r.image_url}','_blank')">`:'—'}</td>
         <td>${isAdmin?`<button class="btn ${r.approved?'btn-ok':'btn-ghost'} btn-sm" onclick="toggleApprove('${r.id}',${!r.approved})">${r.approved?'✅':'待审'}</button>`:(r.approved?'✅':'—')}</td>
         <td><b>${Number(r.running_balance).toFixed(2)}</b></td>
-        <td style="color:var(--text2)">${esc(r.note||'—')}</td>
+        <td style="color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:${r.note&&r.note.length>14?'help':'default'}" title="${esc(r.note||'')}">${esc(r.note||'—')}</td>
         <td><button class="btn btn-ghost btn-sm" onclick="editExpense('${r.id}')">✏️</button> <button class="btn btn-ghost btn-sm" onclick="delExpense('${r.id}')">🗑️</button></td>
       </tr>`;
     }
