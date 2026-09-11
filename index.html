@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v29-attendance-input-16px-noiosZoom -->
+<!-- BUILD-VERSION: 2026-08-05-v30-attendance-input-fontsize-fix -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1208,7 +1208,7 @@ function openAttCell(workerId,date){
   const cell=document.getElementById('cell_'+key);
   if(!cell)return;
   const cur=attMap[key];
-  cell.innerHTML=`<input type="text" id="input_${key}" value="${cur!=null?esc(String(cur)):''}" style="width:100%;height:100%;margin:0;padding:0;border:none;outline:none;background:transparent;text-align:center;font-size:16px;color:inherit;box-sizing:border-box" onkeydown="attInputKey(event,'${workerId}','${date}')" onblur="attInputBlur('${workerId}','${date}')">`;
+  cell.innerHTML=`<input type="text" id="input_${key}" value="${cur!=null?esc(String(cur)):''}" style="width:100%;height:100%;margin:0;padding:0;border:none;outline:none;background:transparent;text-align:center;font-size:.78rem;line-height:normal;color:inherit;box-sizing:border-box" onkeydown="attInputKey(event,'${workerId}','${date}')" onblur="attInputBlur('${workerId}','${date}')">`;
   const inp=document.getElementById('input_'+key);
   inp.focus();inp.select();
 }
