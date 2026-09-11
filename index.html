@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v32-attendance-debug-log -->
+<!-- BUILD-VERSION: 2026-08-05-v33-attendance-hover-fix -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -142,7 +142,7 @@ border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin
 .att-grid th{background:#f8fafc;font-size:.68rem;color:var(--text2)}
 .att-grid td.att-name{position:sticky;left:0;background:#fff;text-align:left;font-weight:600;min-width:110px;z-index:1}
 .att-grid td.att-cell{cursor:pointer}
-.att-grid td.att-cell:hover{background:var(--pri-l)}
+.att-grid td.att-cell:hover{background:#fafbfc}
 .att-grid select{font-size:.75rem;padding:2px;width:100%}
 input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 input[type=number]{-moz-appearance:textfield;appearance:textfield}
@@ -1211,9 +1211,6 @@ function openAttCell(workerId,date){
   cell.innerHTML=`<input type="text" id="input_${key}" autocomplete="off" name="cell_${key.replace(/[^a-zA-Z0-9]/g,'')}" value="${cur!=null?esc(String(cur)):''}" style="width:100%;height:100%;margin:0;padding:0;border:none;outline:none;background-color:transparent!important;text-align:center;font-size:.78rem;line-height:normal;color:inherit;box-sizing:border-box;box-shadow:0 0 0 1000px white inset" onkeydown="attInputKey(event,'${workerId}','${date}')" onblur="attInputBlur('${workerId}','${date}')">`;
   const inp=document.getElementById('input_'+key);
   inp.focus();inp.select();
-  const cellCs=getComputedStyle(cell),inpCs=getComputedStyle(inp);
-  console.log('🔍 格子诊断 CELL:',{width:cellCs.width,height:cellCs.height,padding:cellCs.padding,background:cellCs.backgroundColor});
-  console.log('🔍 输入框诊断 INPUT:',{width:inpCs.width,height:inpCs.height,fontSize:inpCs.fontSize,background:inpCs.backgroundColor,border:inpCs.border,boxShadow:inpCs.boxShadow,padding:inpCs.padding,margin:inpCs.margin,transform:inpCs.transform,zoom:inpCs.zoom});
 }
 function moveAttCell(workerId,date,dirKey){
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
