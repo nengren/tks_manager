@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v31-attendance-autofill-override -->
+<!-- BUILD-VERSION: 2026-08-05-v32-attendance-debug-log -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1211,6 +1211,9 @@ function openAttCell(workerId,date){
   cell.innerHTML=`<input type="text" id="input_${key}" autocomplete="off" name="cell_${key.replace(/[^a-zA-Z0-9]/g,'')}" value="${cur!=null?esc(String(cur)):''}" style="width:100%;height:100%;margin:0;padding:0;border:none;outline:none;background-color:transparent!important;text-align:center;font-size:.78rem;line-height:normal;color:inherit;box-sizing:border-box;box-shadow:0 0 0 1000px white inset" onkeydown="attInputKey(event,'${workerId}','${date}')" onblur="attInputBlur('${workerId}','${date}')">`;
   const inp=document.getElementById('input_'+key);
   inp.focus();inp.select();
+  const cellCs=getComputedStyle(cell),inpCs=getComputedStyle(inp);
+  console.log('🔍 格子诊断 CELL:',{width:cellCs.width,height:cellCs.height,padding:cellCs.padding,background:cellCs.backgroundColor});
+  console.log('🔍 输入框诊断 INPUT:',{width:inpCs.width,height:inpCs.height,fontSize:inpCs.fontSize,background:inpCs.backgroundColor,border:inpCs.border,boxShadow:inpCs.boxShadow,padding:inpCs.padding,margin:inpCs.margin,transform:inpCs.transform,zoom:inpCs.zoom});
 }
 function moveAttCell(workerId,date,dirKey){
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
