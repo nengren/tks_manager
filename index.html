@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v36-jspreadsheet-correct-filenames -->
+<!-- BUILD-VERSION: 2026-08-05-v37-attendance-layout-collapse-roster -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1087,7 +1087,7 @@ async function delExpense(id){
 }
 
 /* ---- ATTENDANCE (jspreadsheet) ---- */
-let workers=[],allWorkers=[],attWeekStart=mondayOf(today()),attMap={},showInactiveWorkers=false,attSheetInstance=null,attLastSelection=null;
+let workers=[],allWorkers=[],attWeekStart=mondayOf(today()),attMap={},showInactiveWorkers=false,attSheetInstance=null,attLastSelection=null,rosterExpanded=false;
 function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
 function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return fmtDate(dt);}
 async function loadWorkers(){
@@ -1095,16 +1095,23 @@ async function loadWorkers(){
   allWorkers=Array.isArray(r)?r:[];
   workers=allWorkers.filter(w=>w.is_active);
 }
+function toggleRoster(){rosterExpanded=!rosterExpanded;rAttendance(document.getElementById('mainBody'));}
 async function rAttendance(el){
   // 现在所有登录角色都能用考勤登记（admin/S/secretary/staff）
   await loadWorkers();
   const weekDates=[0,1,2,3,4,5,6].map(i=>addDays(attWeekStart,i));
   let h=`<div class="main-header"><h1>🕐 考勤登记</h1><p>Attendance Log &middot; 表格操作方式跟 Excel 一样：点格子直接打字，方向键跳格，拖拽/Shift选区，Ctrl+C/V 复制粘贴</p></div>`;
 
-  // 员工花名册管理（拖拽排序，跟打卡机顺序一致）
+  // 员工花名册管理（默认收起，只留一行摘要，点了才展开，省地方）
   const nameCounts={};allWorkers.forEach(w=>{nameCounts[w.name]=(nameCounts[w.name]||0)+1;});
   const inactiveWorkers=allWorkers.filter(w=>!w.is_active);
-  h+=`<div class="card"><h3>👷 员工花名册 Worker List (${workers.length}) · 直接拖动名字调整顺序 Drag to reorder</h3>
+  h+=`<div class="card" style="padding:${rosterExpanded?'20px':'12px 20px'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleRoster()">
+      <h3 style="margin:0">👷 员工花名册（${workers.length}人）</h3>
+      <button class="btn btn-ghost btn-sm">${rosterExpanded?'▲ 收起':'✏️ 管理花名册'}</button>
+    </div>
+    ${rosterExpanded?`
+    <p style="font-size:.72rem;color:var(--text3);margin:6px 0 10px">直接拖动名字调整顺序 Drag to reorder</p>
     <div style="max-height:320px;overflow-y:auto;margin:10px 0" id="workerList">
     ${workers.length?workers.map((w,i)=>`<div class="worker-row" draggable="true" data-id="${w.id}" ondragstart="workerDragStart(event)" ondragover="workerDragOver(event)" ondragleave="workerDragLeave(event)" ondrop="workerDrop(event)" ondragend="workerDragEnd(event)">
         <span class="worker-drag-handle">⠿</span>
@@ -1122,6 +1129,7 @@ async function rAttendance(el){
         <div style="display:flex;gap:8px"><textarea id="workerBulk" placeholder="Shiela&#10;BJ&#10;Mico&#10;..." style="flex:1;min-height:40px"></textarea><button class="btn btn-pri btn-sm" onclick="bulkAddWorkers()">📋 批量添加</button></div></div>
     </div>
     <p style="font-size:.7rem;color:var(--text3);margin-top:6px">停用不会删除历史考勤记录，随时可以重新启用；如果两个人同名，会自动在名字后面标注加入日期用来区分。</p>
+    `:''}
   </div>`;
 
   // 周导航
@@ -1139,7 +1147,7 @@ async function rAttendance(el){
     <span style="margin-left:auto;font-size:.82rem;color:var(--text2)" id="attSelSummary">先用鼠标拖选一片格子（或 Shift+方向键）</span>
   </div>`;
 
-  h+='<div class="card"><div id="attSheetContainer"></div></div>';
+  h+='<div class="card" style="display:flex;justify-content:center;overflow-x:auto"><div id="attSheetContainer"></div></div>';
   h+='<p style="font-size:.72rem;color:var(--text3);padding:0 4px">跟 Excel 操作一样：点格子直接打字，方向键换格，拖拽鼠标框选一片区域，右下角小方块拖动可以往下/往右批量填充，Ctrl+C/Ctrl+V 复制粘贴同样有效。选中一片区域后，上面会显示格子数和数字合计；选好后点色块能把这片区域标色（颜色会保存，刷新也不会丢）。</p>';
   el.innerHTML=h;
 
@@ -1156,8 +1164,8 @@ function buildAttSheet(weekDates){
   const container=document.getElementById('attSheetContainer');
   if(!container)return;
   container.innerHTML='';
-  const columns=[{type:'text',title:'员工',width:120,readOnly:true}]
-    .concat(weekDates.map(d=>({type:'text',title:d.slice(5)+' '+['日','一','二','三','四','五','六'][new Date(d+'T00:00:00').getDay()],width:96})));
+  const columns=[{type:'text',title:'员工',width:150,readOnly:true}]
+    .concat(weekDates.map(d=>({type:'text',title:d.slice(5)+' '+['日','一','二','三','四','五','六'][new Date(d+'T00:00:00').getDay()],width:140})));
   const data=(workers.length?workers:[]).map(w=>{
     const row=[w.name];
     weekDates.forEach(d=>{const rec=attMap[w.id+'_'+d];row.push(rec&&rec.days_absent!=null?String(rec.days_absent):'');});
