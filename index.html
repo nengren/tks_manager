@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v39-worker-file-import-export -->
+<!-- BUILD-VERSION: 2026-08-05-v40-fix-csv-bom -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1296,6 +1296,7 @@ async function addWorker(){
   else toast('❌ 添加失败: '+(r.message||'请检查数据表是否已创建'));
 }
 function parseCSVText(text){
+  text=text.replace(/^\uFEFF/,''); // 去掉Excel导出常带的BOM隐藏字符，不然表头认不出来
   return text.split(/\r?\n/).filter(l=>l.trim()!=='').map(line=>line.split(',').map(c=>c.trim().replace(/^"|"$/g,'')));
 }
 function extractNamesFromRows(rows){
