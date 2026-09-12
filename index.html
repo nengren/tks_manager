@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v45-preserve-import-order -->
+<!-- BUILD-VERSION: 2026-08-05-v46-attendance-full-height-table -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1195,7 +1195,7 @@ function buildAttSheet(weekDates){
     data:data,
     columns:columns,
     style:styleObj,
-    tableOverflow:true,
+    tableOverflow:false,
     allowInsertRow:false,allowManualInsertRow:false,allowDeleteRow:false,allowInsertColumn:false,allowDeleteColumn:false,
     onchange:function(instance,cell,x,y,value){
       x=parseInt(x);y=parseInt(y);
