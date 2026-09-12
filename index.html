@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v42-worker-permanent-delete -->
+<!-- BUILD-VERSION: 2026-08-05-v43-fix-onclick-injection-cleanup -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1112,19 +1112,22 @@ async function rAttendance(el){
       <button class="btn btn-ghost btn-sm">${rosterExpanded?'▲ 收起':'✏️ 管理花名册'}</button>
     </div>
     ${rosterExpanded?`
-    <p style="font-size:.72rem;color:var(--text3);margin:6px 0 10px">直接拖动名字调整顺序 Drag to reorder</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 10px">
+      <p style="font-size:.72rem;color:var(--text3);margin:0">直接拖动名字调整顺序 Drag to reorder</p>
+      <button class="btn btn-ghost btn-sm" style="color:var(--bad)" onclick="cleanupGarbledWorkers()">🧹 一键清理乱码数据</button>
+    </div>
     <div style="max-height:320px;overflow-y:auto;margin:10px 0" id="workerList">
     ${workers.length?workers.map((w,i)=>`<div class="worker-row" draggable="true" data-id="${w.id}" ondragstart="workerDragStart(event)" ondragover="workerDragOver(event)" ondragleave="workerDragLeave(event)" ondrop="workerDrop(event)" ondragend="workerDragEnd(event)">
         <span class="worker-drag-handle">⠿</span>
         <span style="color:var(--text3);font-size:.72rem;width:24px">${i+1}</span>
         <span style="flex:1">${esc(w.name)}${w.is_parttime?' <span class=\"badge badge-secretary\" style=\"font-size:.65rem\">兼职 PT</span>':''}${nameCounts[w.name]>1?` <span style="color:var(--text3);font-size:.65rem">(加入于${w.created_at?w.created_at.slice(0,10):'-'})</span>`:''}</span>
         <label style="font-size:.7rem;color:var(--text3);display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" ${w.is_parttime?'checked':''} onchange="event.stopPropagation();toggleParttime('${w.id}',this.checked)">兼职</label>
-        <span style="cursor:pointer;color:var(--pri);font-size:.72rem;padding:0 6px" onclick="delWorker('${w.id}','${esc(w.name)}')">停用</span>
-        <span style="cursor:pointer;color:var(--bad);font-size:.72rem;padding:0 6px" onclick="deleteWorkerPermanently('${w.id}','${esc(w.name)}')" title="彻底删除，用于清理导入出错产生的垃圾数据">删除</span>
+        <span style="cursor:pointer;color:var(--pri);font-size:.72rem;padding:0 6px" onclick="delWorker('${w.id}')">停用</span>
+        <span style="cursor:pointer;color:var(--bad);font-size:.72rem;padding:0 6px" onclick="deleteWorkerPermanently('${w.id}')" title="彻底删除，用于清理导入出错产生的垃圾数据">删除</span>
       </div>`).join(''):'<span style="color:var(--text3);font-size:.82rem">暂无员工，先在下面添加</span>'}
     </div>
     ${inactiveWorkers.length?`<div style="font-size:.75rem;color:var(--pri);cursor:pointer;margin-bottom:8px" onclick="showInactiveWorkers=!showInactiveWorkers;rAttendance(document.getElementById('mainBody'))">${showInactiveWorkers?'▲ 收起已停用':'▼ 查看已停用 ('+inactiveWorkers.length+')'}</div>
-    ${showInactiveWorkers?`<div style="margin-bottom:10px">${inactiveWorkers.map(w=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;opacity:.55"><span style="flex:1;text-decoration:line-through">${esc(w.name)} <span style="font-size:.65rem">(加入于${w.created_at?w.created_at.slice(0,10):'-'})</span></span><button class="btn btn-ghost btn-sm" onclick="reactivateWorker('${w.id}')">启用</button><button class="btn btn-ghost btn-sm" style="color:var(--bad)" onclick="deleteWorkerPermanently('${w.id}','${esc(w.name)}')">彻底删除</button></div>`).join('')}</div>`:''}`:''}
+    ${showInactiveWorkers?`<div style="margin-bottom:10px">${inactiveWorkers.map(w=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;opacity:.55"><span style="flex:1;text-decoration:line-through">${esc(w.name)} <span style="font-size:.65rem">(加入于${w.created_at?w.created_at.slice(0,10):'-'})</span></span><button class="btn btn-ghost btn-sm" onclick="reactivateWorker('${w.id}')">启用</button><button class="btn btn-ghost btn-sm" style="color:var(--bad)" onclick="deleteWorkerPermanently('${w.id}')">彻底删除</button></div>`).join('')}</div>`:''}`:''}
     <div class="form-row">
       <div class="fg"><label>单个添加 Add One</label><div style="display:flex;gap:8px"><input type="text" id="newWorkerName" placeholder="姓名"><button class="btn btn-ghost btn-sm" onclick="addWorker()">➕</button></div></div>
       <div class="fg"><label>批量导入 Bulk Import（上传 CSV 或 Excel 文件，自动识别"姓名"这一列，没有表头就用第一列）</label>
@@ -1370,8 +1373,24 @@ function exportWorkers(){
   URL.revokeObjectURL(url);
   toast('✅ 已导出');
 }
-async function delWorker(id,name){
-  if(!confirm('停用员工 "'+name+'"？\n考勤历史记录会保留，不会删除；这个人以后不会出现在花名册和格子里，需要的话随时可以重新启用。'))return;
+function isGarbledName(n){
+  return /\uFFFD/.test(n)||n.length>60;
+}
+async function cleanupGarbledWorkers(){
+  const bad=allWorkers.filter(w=>isGarbledName(w.name));
+  if(!bad.length){toast('没有发现明显的乱码数据');return}
+  if(!confirm('发现 '+bad.length+' 条疑似乱码/异常数据，要一次性彻底删除吗？（不可恢复，考勤记录也会一起清掉）'))return;
+  for(const w of bad){
+    await sb.del('tks_attendance',{worker_id:w.id});
+    await sb.del('tks_workers',{id:w.id});
+  }
+  toast('🗑️ 已清理 '+bad.length+' 条');
+  rAttendance(document.getElementById('mainBody'));
+}
+async function delWorker(id){
+  const w=allWorkers.find(x=>x.id===id);
+  const name=w?w.name:'(这个人)';
+  if(!confirm('停用员工 "'+name.slice(0,40)+'"？\n考勤历史记录会保留，不会删除；这个人以后不会出现在花名册和格子里，需要的话随时可以重新启用。'))return;
   await sb.patch('tks_workers',{id},{is_active:false});
   toast('已停用');rAttendance(document.getElementById('mainBody'));
 }
@@ -1380,8 +1399,10 @@ async function reactivateWorker(id){
   toast('✅ 已启用');
   rAttendance(document.getElementById('mainBody'));
 }
-async function deleteWorkerPermanently(id,name){
-  if(!confirm('彻底删除 "'+name+'"？\n这个操作不可恢复，连同这个人名下的所有考勤记录会一起永久删除。\n\n如果这是真实员工只是离职了，请用"停用"，不要用这个；这个按钮是用来清理导入出错产生的垃圾数据的。\n\n确定要彻底删除吗？'))return;
+async function deleteWorkerPermanently(id){
+  const w=allWorkers.find(x=>x.id===id);
+  const name=w?w.name:'(这个人)';
+  if(!confirm('彻底删除 "'+name.slice(0,40)+'"？\n这个操作不可恢复，连同这个人名下的所有考勤记录会一起永久删除。\n\n如果这是真实员工只是离职了，请用"停用"，不要用这个；这个按钮是用来清理导入出错产生的垃圾数据的。\n\n确定要彻底删除吗？'))return;
   await sb.del('tks_attendance',{worker_id:id});
   await sb.del('tks_workers',{id});
   toast('🗑️ 已彻底删除');
