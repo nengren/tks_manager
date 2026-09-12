@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v43-fix-onclick-injection-cleanup -->
+<!-- BUILD-VERSION: 2026-08-05-v44-import-content-based-detection -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1314,25 +1314,21 @@ function extractNamesFromRows(rows){
 function importWorkersFile(inputEl){
   const file=inputEl.files&&inputEl.files[0];
   if(!file)return;
-  const isCsv=/\.(csv|txt)$/i.test(file.name);
   const reader=new FileReader();
   reader.onload=function(e){
     let names=[];
     try{
-      if(isCsv){
-        names=extractNamesFromRows(parseCSVText(String(e.target.result)));
-      }else{
-        const wb=XLSX.read(e.target.result,{type:'binary'});
-        const sheet=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
-        names=extractNamesFromRows(rows);
-      }
+      // 不再看文件后缀名，直接用统一的解析库识别文件真实内容（Excel/CSV都能自动认出来）
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const sheet=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(sheet,{header:1});
+      names=extractNamesFromRows(rows);
     }catch(err){toast('❌ 文件解析失败: '+err.message);inputEl.value='';return}
     processImportedNames(names);
     inputEl.value='';
   };
   reader.onerror=function(){toast('❌ 文件读取失败');inputEl.value='';};
-  if(isCsv)reader.readAsText(file);else reader.readAsBinaryString(file);
+  reader.readAsArrayBuffer(file);
 }
 function sanitizeName(n){
   // 去掉不可见的控制字符和反斜杠，避免数据库处理转义字符时报错
