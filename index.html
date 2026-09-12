@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v44-import-content-based-detection -->
+<!-- BUILD-VERSION: 2026-08-05-v45-preserve-import-order -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1295,8 +1295,9 @@ async function toggleParttime(id,checked){
 async function addWorker(){
   const name=document.getElementById('newWorkerName').value.trim();
   if(!name){toast('请输入姓名');return}
-  const r=await sb.post('tks_workers',{name,created_by:U.id});
-  if(Array.isArray(r)&&r.length){toast('✅ 已添加');rAttendance(document.getElementById('mainBody'));}
+  const maxSort=allWorkers.reduce((m,w)=>Math.max(m,w.sort_order||0),0);
+  const r=await sb.post('tks_workers',{name,created_by:U.id,sort_order:maxSort+10});
+  if(Array.isArray(r)&&r.length){toast('✅ 已添加');document.getElementById('newWorkerName').value='';rAttendance(document.getElementById('mainBody'));}
   else toast('❌ 添加失败: '+(r.message||'请检查数据表是否已创建'));
 }
 function parseCSVText(text){
@@ -1341,15 +1342,18 @@ async function processImportedNames(names){
   const toAdd=names.filter(n=>!existingLower.has(n.toLowerCase()));
   const skipped=names.length-toAdd.length;
   if(!toAdd.length){toast('文件里的名字都已经在花名册里了（含已停用的）');return}
-  const r=await sb.post('tks_workers',toAdd.map(n=>({name:n,created_by:U.id})));
+  const maxSort=allWorkers.reduce((m,w)=>Math.max(m,w.sort_order||0),0);
+  const payload=toAdd.map((n,i)=>({name:n,created_by:U.id,sort_order:maxSort+(i+1)*10}));
+  const r=await sb.post('tks_workers',payload);
   if(Array.isArray(r)){
-    toast('✅ 已导入 '+r.length+' 人'+(skipped?'，跳过 '+skipped+' 个已存在的名字':''));
+    toast('✅ 已导入 '+r.length+' 人，按文件里的顺序排在花名册最后'+(skipped?'，跳过 '+skipped+' 个已存在的名字':''));
     rAttendance(document.getElementById('mainBody'));
   }else{
     // 整批失败，逐个尝试，找出具体是哪个名字有问题
     let ok=0;const bad=[];
-    for(const n of toAdd){
-      const rr=await sb.post('tks_workers',{name:n,created_by:U.id});
+    for(let i=0;i<toAdd.length;i++){
+      const n=toAdd[i];
+      const rr=await sb.post('tks_workers',{name:n,created_by:U.id,sort_order:maxSort+(i+1)*10});
       if(Array.isArray(rr)&&rr.length)ok++;else bad.push(n);
     }
     toast(`✅ 成功导入 ${ok} 人${bad.length?'，❌ 这几个有问题没能导入：'+bad.join('、'):''}`);
