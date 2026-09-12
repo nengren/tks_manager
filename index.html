@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-08-05-v40-fix-csv-bom -->
+<!-- BUILD-VERSION: 2026-08-05-v41-sanitize-name-isolate-bad -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1330,8 +1330,12 @@ function importWorkersFile(inputEl){
   reader.onerror=function(){toast('❌ 文件读取失败');inputEl.value='';};
   if(isCsv)reader.readAsText(file);else reader.readAsBinaryString(file);
 }
+function sanitizeName(n){
+  // 去掉不可见的控制字符和反斜杠，避免数据库处理转义字符时报错
+  return String(n).replace(/[\u0000-\u001F\u007F\\]/g,'').trim();
+}
 async function processImportedNames(names){
-  names=[...new Set(names.map(n=>n.trim()).filter(Boolean))];
+  names=[...new Set(names.map(n=>sanitizeName(n)).filter(Boolean))];
   if(!names.length){toast('文件里没找到可用的姓名');return}
   const existingLower=new Set(allWorkers.map(w=>w.name.toLowerCase()));
   const toAdd=names.filter(n=>!existingLower.has(n.toLowerCase()));
@@ -1341,7 +1345,16 @@ async function processImportedNames(names){
   if(Array.isArray(r)){
     toast('✅ 已导入 '+r.length+' 人'+(skipped?'，跳过 '+skipped+' 个已存在的名字':''));
     rAttendance(document.getElementById('mainBody'));
-  }else toast('❌ 导入失败: '+(r.message||JSON.stringify(r)));
+  }else{
+    // 整批失败，逐个尝试，找出具体是哪个名字有问题
+    let ok=0;const bad=[];
+    for(const n of toAdd){
+      const rr=await sb.post('tks_workers',{name:n,created_by:U.id});
+      if(Array.isArray(rr)&&rr.length)ok++;else bad.push(n);
+    }
+    toast(`✅ 成功导入 ${ok} 人${bad.length?'，❌ 这几个有问题没能导入：'+bad.join('、'):''}`);
+    if(ok)rAttendance(document.getElementById('mainBody'));
+  }
 }
 function exportWorkers(){
   if(!workers.length){toast('花名册是空的，没什么可导出的');return}
