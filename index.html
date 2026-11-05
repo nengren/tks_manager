@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-04-v49-bilingual-ui -->
+<!-- BUILD-VERSION: 2026-11-05-v50-remove-tasks -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -59,11 +59,11 @@ padding:6px 14px;border-radius:6px;font-size:.75rem;cursor:pointer;width:100%}
 .card h3{font-size:1rem;margin-bottom:4px}
 .card .sub-label{font-size:.75rem;color:var(--text3)}
 .sec-title{font-size:.78rem;font-weight:700;color:var(--text2);margin:20px 0 10px;text-transform:uppercase;letter-spacing:.5px}
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .stat-card{background:var(--card);border-radius:var(--radius);padding:18px 16px;box-shadow:var(--shadow);border:1px solid var(--border)}
 .stat-val{font-size:1.6rem;font-weight:700}
 .stat-label{font-size:.72rem;color:var(--text2);margin-top:4px}
-.quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .action-btn{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:24px 16px;
 text-align:center;cursor:pointer;transition:all .15s}
 .action-btn:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:0 4px 12px rgba(14,165,233,.15)}
@@ -73,34 +73,6 @@ text-align:center;cursor:pointer;transition:all .15s}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 .form-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.store-checklist{margin-bottom:20px}
-.store-cl-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f8fafc;
-border-radius:var(--radius) var(--radius) 0 0;border:1px solid var(--border);border-bottom:none;cursor:pointer}
-.store-cl-header h4{font-size:.9rem;display:flex;align-items:center;gap:8px}
-.store-cl-header .progress{font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:20px}
-.store-cl-header .progress.p-full{background:var(--ok-bg);color:var(--ok)}
-.store-cl-header .progress.p-partial{background:var(--warn-bg);color:var(--warn)}
-.store-cl-header .progress.p-none{background:var(--bad-bg);color:var(--bad)}
-.store-cl-body{border:1px solid var(--border);border-radius:0 0 var(--radius) var(--radius);background:#fff}
-.period-label{padding:8px 16px;font-size:.72rem;font-weight:700;color:var(--pri);text-transform:uppercase;background:#fafbfc;border-bottom:1px solid var(--border)}
-.ck-item{display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s}
-.ck-item:hover{background:#fafbfc}
-.ck-item:last-child{border:none}
-.ck-box{width:22px;height:22px;border-radius:5px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;
-justify-content:center;font-size:12px;transition:all .15s;margin-top:2px}
-.ck-item.done .ck-box{background:var(--ok);border-color:var(--ok);color:#fff}
-.ck-txt .t-zh{font-size:.82rem;font-weight:500}
-.ck-txt .t-en{font-size:.7rem;color:var(--text3)}
-.ck-txt .t-fil{font-size:.68rem;color:var(--text3);font-style:italic}
-.ck-time{font-size:.65rem;color:var(--ok);margin-top:2px}
-.staff-overview{margin-bottom:16px}
-.staff-ov-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--card);
-border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;margin-bottom:2px}
-.staff-ov-header:hover{background:#fafbfc}
-.staff-ov-header h4{font-size:.92rem}
-.staff-ov-detail{padding:0 18px 12px;background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--radius) var(--radius)}
-.staff-store-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem}
-.staff-store-row:last-child{border:none}
 .score-table{width:100%;border-collapse:collapse;font-size:.82rem}
 .score-table th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);font-size:.72rem;text-transform:uppercase;color:var(--text2);font-weight:700}
 .score-table td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
@@ -302,22 +274,6 @@ async function uploadImage(file,folder){
   return SB_URL+'/storage/v1/object/public/tks-uploads/'+path;
 }
 
-const TASKS=[
-  {p:'morning',k:'msg1',zh:'检查并回复所有客户消息',en:'Check & reply ALL customer messages',icon:'💬'},
-  {p:'morning',k:'aftersale',zh:'检查新的售后请求并分类处理',en:'Check new after-sales requests and handle',icon:'📋'},
-  {p:'morning',k:'orders',zh:'检查即将超时的待发货订单',en:'Check orders near auto-cancel deadline',icon:'📦'},
-  {p:'afternoon',k:'msg2',zh:'再次检查未回复的客户消息',en:'Second check: reply unreplied messages',icon:'💬'},
-  {p:'afternoon',k:'reviews',zh:'检查新的1-2星差评并按SOP处理',en:'Check new 1-2 star reviews, follow SOP',icon:'⭐'},
-  {p:'afternoon',k:'returns',zh:'检查新的退货退款请求，记录原因',en:'Check new return/refund requests, log reasons',icon:'🔄'},
-  {p:'evening',k:'msg3',zh:'最后一轮消息检查，确保零未读',en:'Final message sweep — ensure ZERO unread',icon:'✅'},
-  {p:'evening',k:'logissues',zh:'登记当天发现的问题到问题日志',en:'Log all issues found today in Issue Log',icon:'📝'},
-  {p:'evening',k:'scores',zh:'如Store Rating有更新，记录分数',en:'Record Store Rating if updated today',icon:'📊'},
-];
-const PERIODS={
-  morning:{zh:'☀️ 早班 9:00前',en:'Morning before 9:00'},
-  afternoon:{zh:'🌤️ 午间 13:00-14:00',en:'Afternoon 13:00-14:00'},
-  evening:{zh:'🌙 下班前 17:00',en:'Evening before 17:00'}
-};
 const ISSUE_TYPES=[
   {v:'wrong_item',zh:'发错货',en:'Wrong Item'},
   {v:'damaged',zh:'破损',en:'Damaged'},
@@ -335,7 +291,6 @@ const RESULTS=[
 function fmtDate(dt){const y=dt.getFullYear(),m=String(dt.getMonth()+1).padStart(2,'0'),d=String(dt.getDate()).padStart(2,'0');return y+'-'+m+'-'+d;}
 const today=()=>fmtDate(new Date());
 const sColor=v=>v>=4?'sv-good':v>=3?'sv-mid':'sv-bad';
-const pClass=(d,t)=>d===t?'p-full':d>0?'p-partial':'p-none';
 const issueTag=t=>{const cls={wrong_item:'wrong',damaged:'damaged',missing_item:'missing',defective:'defective',other:'other'};const i=ISSUE_TYPES.find(x=>x.v===t);return '<span class="tag tag-'+(cls[t]||'other')+'">'+(i?i.zh+' '+i.en:t)+'</span>'};
 const resultTag=r=>{const i=RESULTS.find(x=>x.v===r);return '<span class="tag tag-'+r+'">'+(i?i.zh+' '+i.en:r)+'</span>'};
 const storeOpts=(sel='')=>'<option value="">-- 选择店铺 Select Store --</option>'+stores.map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.store_name+'</option>').join('');
@@ -436,7 +391,6 @@ function buildNav(){
     tabs=[
       {id:'chat',icon:'💬',label:'聊天 Chat'},
       {id:'todos',icon:'📋',label:'待办 Todos'},
-      {id:'tasks',icon:'✅',label:'任务 Tasks'},
       {id:'stores',icon:'🏪',label:'店铺 Stores'},
     ];
   }else{
@@ -444,7 +398,6 @@ function buildNav(){
       {id:'home',icon:'🏠',label:'首页 Home'},
       {id:'chat',icon:'💬',label:'聊天 Chat'},
       {id:'todos',icon:'📋',label:'待办 Todos'},
-      {id:'tasks',icon:'✅',label:'任务 Tasks'},
       {id:'score',icon:'📊',label:'分数与奖励 Scores & Rewards'},
       {id:'issues',icon:'⚠️',label:'问题 Issues'},
       {id:'sop',icon:'📖',label:'SOP'},
@@ -471,17 +424,13 @@ function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,chat:rChat,todos:rTodos,tasks:rTasks,score:rScoreHub,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses};
+  const render={home:rHome,chat:rChat,todos:rTodos,score:rScoreHub,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses};
   if(render[id])render[id](m);
 }
 
 /* ---- HOME ---- */
 async function rHome(el){
   const ms=myStores();
-  const checks=await sb.get('tks_checklist','check_date=eq.'+today()+'&completed=eq.true');
-  const ck=Array.isArray(checks)?checks:[];
-  const myDone=ck.filter(c=>c.completed_by===U.id).length;
-  const myTotal=ms.length*TASKS.length;
   const scores=await sb.get('tks_scores','order=record_date.desc&limit=200');
   const latest={},prev={};if(Array.isArray(scores))scores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
   const allTodos=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
@@ -509,13 +458,11 @@ async function rHome(el){
     }
   }
   h+=`<div class="stats-row">
-    <div class="stat-card"><div class="stat-val ${myDone===myTotal&&myTotal>0?'sv-good':'sv-mid'}">${myDone}/${myTotal}</div><div class="stat-label">今日任务 My Tasks</div></div>
     <div class="stat-card" style="cursor:pointer" onclick="go('todos')"><div class="stat-val ${myTodos.length>0?'sv-bad':'sv-good'}">${myTodos.length}</div><div class="stat-label">待处理待办 Pending Todos</div></div>
     <div class="stat-card"><div class="stat-val">${ms.length}</div><div class="stat-label">${isTop()?'全部店铺 All Stores':'我的店铺 My Stores'}</div></div>
     <div class="stat-card"><div class="stat-val">${stores.filter(s=>!s.assigned_to).length}</div><div class="stat-label">未指派 Unassigned</div></div>
   </div>`;
   h+=`<div class="quick-actions">
-    <div class="action-btn" onclick="go('tasks')"><div class="ai">✅</div><div class="az">今日任务</div><div class="ae">Today's Checklist</div></div>
     <div class="action-btn" onclick="go('todos')"><div class="ai">📋</div><div class="az">待办事项</div><div class="ae">Todo List</div></div>
     <div class="action-btn" onclick="go('score')"><div class="ai">📊</div><div class="az">记录分数</div><div class="ae">Record Scores</div></div>
     <div class="action-btn" onclick="go('issues')"><div class="ai">⚠️</div><div class="az">登记问题</div><div class="ae">Log Issues</div></div>
@@ -1070,50 +1017,6 @@ async function delExpense(id){
 /* ---- DATE HELPERS (分数看板/我的进度/订单登记在用) ---- */
 function mondayOf(d){const dt=new Date(d+'T00:00:00');const day=dt.getDay();const diff=(day===0?-6:1-day);dt.setDate(dt.getDate()+diff);return fmtDate(dt);}
 function addDays(d,n){const dt=new Date(d+'T00:00:00');dt.setDate(dt.getDate()+n);return fmtDate(dt);}
-
-/* ---- TASKS ---- */
-async function rTasks(el){
-  const ms=myStores();
-  const checks=await sb.get('tks_checklist','check_date=eq.'+today()+'&completed=eq.true');
-  const ck=Array.isArray(checks)?checks:[];
-  let h=`<div class="main-header"><h1>✅ 今日任务清单 Today's Checklist</h1><p>Today's Checklist — ${today()}</p></div>`;
-  if(isTop()){
-    h+='<div class="sec-title">📋 团队概览 Team Overview</div>';
-    const sm={};
-    staffList.filter(s=>s.is_active).forEach(s=>{sm[s.id]={name:s.display_name,stores:stores.filter(st=>st.assigned_to===s.id),done:0,total:0}});
-    for(const uid in sm){const u=sm[uid];u.total=u.stores.length*TASKS.length;u.done=ck.filter(c=>c.completed_by===uid).length;}
-    for(const uid in sm){const u=sm[uid];if(!u.stores.length)continue;const pc=pClass(u.done,u.total);
-      h+=`<div class="staff-overview"><div class="staff-ov-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
-        <h4>👤 ${u.name}</h4><span class="progress ${pc}">${u.done}/${u.total}</span></div>
-        <div class="staff-ov-detail hidden">`;
-      for(const st of u.stores){const d=ck.filter(c=>c.completed_by===uid&&c.store_id===st.id).length;
-        h+=`<div class="staff-store-row"><span>🏪 ${esc(st.store_name)}</span><span class="progress ${pClass(d,TASKS.length)}">${d}/${TASKS.length}</span></div>`}
-      h+='</div></div>';}
-    h+='<div class="nav-sep" style="margin:20px 0;border-color:var(--border)"></div>';}
-  h+='<div class="sec-title">'+(isTop()?'我的任务 My Tasks':'我负责的店铺 My Assigned Stores')+'</div>';
-  if(!ms.length){h+='<div class="card" style="text-align:center;color:var(--text3);padding:40px">暂无指派的店铺<br>No stores assigned to you</div>';el.innerHTML=h;return}
-  for(const store of ms){
-    const storeCk=ck.filter(c=>c.completed_by===U.id&&c.store_id===store.id);
-    const doneKeys=new Set(storeCk.map(c=>c.task_key));const done=doneKeys.size;
-    h+=`<div class="store-checklist"><div class="store-cl-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
-      <h4>🏪 ${esc(store.store_name)}</h4><span class="progress ${pClass(done,TASKS.length)}">${done}/${TASKS.length}</span></div>
-      <div class="store-cl-body">`;
-    let lp='';
-    for(const t of TASKS){
-      if(t.p!==lp){lp=t.p;const pl=PERIODS[t.p];h+=`<div class="period-label">${pl.zh} · ${pl.en}</div>`}
-      const d=doneKeys.has(t.k);
-      h+=`<div class="ck-item${d?' done':''}" onclick="toggleCk('${t.k}','${store.id}',${!d})">
-        <div class="ck-box">${d?'✓':''}</div>
-        <div class="ck-txt"><div class="t-zh">${t.icon} ${t.zh}</div><div class="t-en">${t.en}</div>
-        ${d?'<div class="ck-time">✓ Done</div>':''}</div></div>`}
-    h+='</div></div>';}
-  el.innerHTML=h;
-}
-async function toggleCk(key,storeId,complete){
-  if(complete)await sb.upsert('tks_checklist',{check_date:today(),task_key:key,store_id:storeId,completed:true,completed_by:U.id,completed_at:new Date().toISOString()});
-  else await sb.del('tks_checklist',{check_date:today(),task_key:key,completed_by:U.id,store_id:storeId});
-  rTasks(document.getElementById('mainBody'));
-}
 
 /* ---- 周度奖励规则：按店算，周一到周日 7 天都登记了总分，且周均分 ≥ 4.5，该店当周奖励 ₱100 ---- */
 const REWARD_THRESHOLD=4.5,REWARD_AMOUNT=100;
