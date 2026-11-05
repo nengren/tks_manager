@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-05-v50-remove-tasks -->
+<!-- BUILD-VERSION: 2026-11-05-v51-chat-fixes-images -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -190,6 +190,8 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .chat-input input:focus{border-color:var(--pri)}
 .chat-input button{padding:10px 20px;background:var(--pri);color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;white-space:nowrap}
 .chat-input button:hover{background:var(--pri-d)}
+.chat-img-btn{display:flex;align-items:center;justify-content:center;width:42px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:1.1rem;background:#fff;flex-shrink:0}.chat-img-btn:hover{border-color:var(--pri);background:var(--pri-l)}
+.chat-msg .cm-bubble.cm-bubble-img{width:fit-content;padding:4px;background:#fff!important;border:1px solid var(--border)}.cm-img{display:block;max-width:220px;max-height:220px;border-radius:10px;cursor:zoom-in}
 .chat-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text3);font-size:.88rem;text-align:center}
 .chat-sec{padding:8px 16px;font-size:.66rem;font-weight:700;color:var(--text3);text-transform:uppercase;background:#fafbfc;border-bottom:1px solid #f1f5f9}
 .chat-date-sep{text-align:center;margin:16px 0 8px;font-size:.68rem;color:var(--text3)}
@@ -1433,10 +1435,18 @@ function rSOP(el){
 }
 
 /* ---- CHAT ---- */
+// 规则：点开某个聊天就算已读（不需要回复）；只拉最新消息；内容没变化就不重画（减轻卡顿）
+let chatLastSig='',chatStickBottom=true,chatSending=false;
+const CHAT_IMG_PREFIX='[img]';
 function dmKey(a,b){return 'dm_'+[a,b].sort().join('_')}
+function chatPersonName(id){const s=staffList.find(x=>x.id===id);return s?s.display_name:'?'}
 function channelName(key){
   if(key==='general')return '📢 总群 General';
-  if(key.startsWith('dm_')){const ids=key.replace('dm_','').split('_');const other=ids.find(i=>i!==U.id);const s=staffList.find(x=>x.id===other);return s?s.display_name:other}
+  if(key.startsWith('dm_')){
+    const ids=key.replace('dm_','').split('_');
+    if(ids.includes(U.id))return chatPersonName(ids.find(i=>i!==U.id));
+    return ids.map(chatPersonName).join(' & '); // 管理员查看两个员工之间的私聊
+  }
   return key;
 }
 function formatTime(ts){if(!ts)return '';const d=new Date(ts);return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
@@ -1444,65 +1454,71 @@ function formatDate(ts){if(!ts)return '';const d=new Date(ts);const t=new Date()
   if(d.toDateString()===t.toDateString())return '今天 Today';
   const y=new Date(t);y.setDate(y.getDate()-1);if(d.toDateString()===y.toDateString())return '昨天 Yesterday';
   return d.toLocaleDateString()}
+function chatImgUrl(m){
+  if(!m||typeof m.message!=='string'||!m.message.startsWith(CHAT_IMG_PREFIX))return null;
+  const url=m.message.slice(CHAT_IMG_PREFIX.length).trim();
+  return url.startsWith(SB_URL+'/storage/v1/object/public/')?url:null;
+}
+function chatPreviewText(m){return chatImgUrl(m)?'[图片 Photo]':(m.message||'')}
+function chatInputHtml(){
+  return `<div class="chat-input">
+    <label class="chat-img-btn" title="发图片 Send photo（也可以直接 Ctrl+V 粘贴截图 or paste a screenshot）">📷<input type="file" accept="image/*" style="display:none" onchange="sendChatImage(this.files[0]);this.value=''"></label>
+    <input type="text" id="chatInput" placeholder="输入消息，可 Ctrl+V 粘贴截图 Type a message or paste a screenshot..." onkeydown="if(event.key==='Enter'&&!event.isComposing&&event.keyCode!==229)sendMsg()" onpaste="chatPaste(event)">
+    <button onclick="sendMsg()">发送 Send</button></div>`;
+}
+const CHAT_VIEWONLY_HTML='<div class="chat-input-viewonly" style="padding:12px 16px;text-align:center;color:var(--text3);font-size:.82rem;background:#fff;border-top:1px solid var(--border)">查看模式 View only</div>';
+
+// 一次请求拿到最近消息 + 我的已读记录，算出每个聊天的未读数
+async function fetchChatState(limit){
+  let msgs=[],rs=[];
+  try{msgs=await sb.get('tks_messages','select=id,channel_key,sender_id,message,created_at,deleted_at&order=created_at.desc&limit='+limit);if(!Array.isArray(msgs))msgs=[];}catch(e){msgs=[];}
+  try{rs=await sb.get('tks_read_status','user_id=eq.'+U.id);if(!Array.isArray(rs))rs=[];}catch(e){rs=[];}
+  const readMap={};
+  rs.forEach(r=>{const t=new Date(r.last_read_at);if(!readMap[r.channel_key]||t>readMap[r.channel_key])readMap[r.channel_key]=t;});
+  const unread={};
+  msgs.forEach(m=>{
+    if(m.sender_id===U.id||m.deleted_at)return;
+    if(new Date(m.created_at)>(readMap[m.channel_key]||new Date(0)))unread[m.channel_key]=(unread[m.channel_key]||0)+1;
+  });
+  return {msgs,unread};
+}
+function isMyChannel(key){return key==='general'||(key.startsWith('dm_')&&key.replace('dm_','').split('_').includes(U.id))}
 
 async function rChat(el){
-  // Get all DM channels for this user (or all for admin)
   const isAdmin=isTop();
-  let allMsgs=[];
-  try{allMsgs=await sb.get('tks_messages','order=created_at.desc&limit=500');if(!Array.isArray(allMsgs))allMsgs=[];}catch(e){allMsgs=[];}
-  // Get read status
-  let readStatus=[];
-  try{readStatus=await sb.get('tks_read_status','user_id=eq.'+U.id);if(!Array.isArray(readStatus))readStatus=[];}catch(e){}
+  const {msgs:allMsgs,unread}=await fetchChatState(500);
 
-  // Build channel list
   const channels=new Map();
   channels.set('general',{key:'general',name:'📢 总群 General',lastMsg:null,unread:0,type:'group'});
-  // DM channels involving current user
-  const myDmKeys=new Set();
   allMsgs.forEach(m=>{
-    if(!channels.has(m.channel_key)){
-      if(m.channel_key.startsWith('dm_')){
-        const ids=m.channel_key.replace('dm_','').split('_');
-        const isMine=ids.includes(U.id);
-        if(isMine||isAdmin){
-          const otherIds=ids.filter(i=>i!==U.id);
-          const otherName=otherIds.map(i=>{const s=staffList.find(x=>x.id===i);return s?s.display_name:i}).join(' & ');
-          channels.set(m.channel_key,{key:m.channel_key,name:(isMine?'👤 ':'👥 ')+otherName,lastMsg:null,unread:0,type:isMine?'dm':'staff_dm'});
-          if(isMine)myDmKeys.add(m.channel_key);
-        }
+    if(!channels.has(m.channel_key)&&m.channel_key.startsWith('dm_')){
+      const ids=m.channel_key.replace('dm_','').split('_');
+      const isMine=ids.includes(U.id);
+      if(isMine||isAdmin){
+        const otherName=ids.filter(i=>i!==U.id).map(chatPersonName).join(' & ');
+        channels.set(m.channel_key,{key:m.channel_key,name:(isMine?'👤 ':'👥 ')+otherName,lastMsg:null,unread:0,type:isMine?'dm':'staff_dm'});
       }
     }
     const ch=channels.get(m.channel_key);
     if(ch&&!ch.lastMsg)ch.lastMsg=m;
   });
-  // Calc unread
-  channels.forEach((ch,key)=>{
-    const rs=readStatus.find(r=>r.channel_key===key);
-    const lastRead=rs?new Date(rs.last_read_at):new Date(0);
-    ch.unread=allMsgs.filter(m=>m.channel_key===key&&new Date(m.created_at)>lastRead&&m.sender_id!==U.id&&!m.deleted_at).length;
-  });
-  // Add DM options for staff not yet chatted with
+  channels.forEach((ch,key)=>{ch.unread=unread[key]||0;});
   staffList.filter(s=>s.is_active&&s.id!==U.id).forEach(s=>{
     const dk=dmKey(U.id,s.id);
     if(!channels.has(dk))channels.set(dk,{key:dk,name:'👤 '+s.display_name,lastMsg:null,unread:0,type:'dm'});
   });
 
-  // Sort: general first, then DMs by last message
   const sorted=[...channels.values()];
+  const byLast=(a,b)=>(b.lastMsg?.created_at||'')>(a.lastMsg?.created_at||'')?1:-1;
   const general=sorted.find(c=>c.key==='general');
-  const myDms=sorted.filter(c=>c.type==='dm').sort((a,b)=>(b.lastMsg?.created_at||'')>(a.lastMsg?.created_at||'')?1:-1);
-  const staffDms=sorted.filter(c=>c.type==='staff_dm').sort((a,b)=>(b.lastMsg?.created_at||'')>(a.lastMsg?.created_at||'')?1:-1);
-
-  // Validate chatChannel
+  const myDms=sorted.filter(c=>c.type==='dm').sort(byLast);
+  const staffDms=sorted.filter(c=>c.type==='staff_dm').sort(byLast);
   if(!channels.has(chatChannel))chatChannel='general';
 
   let convHtml='';
-  // General
-  if(general){convHtml+=mkConv(general)}
-  // My DMs
+  if(general)convHtml+=mkConv(general);
   if(myDms.length)convHtml+='<div class="chat-sec">── 私聊 My DMs ──</div>';
   myDms.forEach(c=>{convHtml+=mkConv(c)});
-  // Admin: staff DMs
   if(isAdmin&&staffDms.length){
     convHtml+='<div class="chat-sec">── 员工私聊 Staff DMs ──</div>';
     staffDms.forEach(c=>{convHtml+=mkConv(c)});
@@ -1514,63 +1530,60 @@ async function rChat(el){
       <div class="chat-list-body">${convHtml}</div>
     </div>
     <div class="chat-main">
-      <div class="chat-main-header" id="chatHeader">${channelName(chatChannel)}</div>
+      <div class="chat-main-header" id="chatHeader">${esc(channelName(chatChannel))}</div>
       <div class="chat-messages" id="chatMsgs"></div>
-      ${canSendIn(chatChannel)?`<div class="chat-input"><input type="text" id="chatInput" placeholder="输入消息 Type a message..." onkeydown="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">发送 Send</button></div>`:'<div style="padding:12px 16px;text-align:center;color:var(--text3);font-size:.82rem;background:#fff;border-top:1px solid var(--border)">查看模式 View only</div>'}
+      ${canSendIn(chatChannel)?chatInputHtml():CHAT_VIEWONLY_HTML}
     </div>
   </div>`;
-  loadChatMessages();
+  chatLastSig='';chatStickBottom=true;
+  await loadChatMessages();
+  refreshChatUnread();
   startChatPoll();
 }
 
 function canSendIn(key){
   if(key==='general')return true;
   if(!key.startsWith('dm_'))return false;
-  const ids=key.replace('dm_','').split('_');
-  return ids.includes(U.id);
+  return key.replace('dm_','').split('_').includes(U.id);
 }
 
 function mkConv(c){
-  const preview=c.lastMsg?(c.lastMsg.deleted_at?'[已撤回 Withdrawn]':esc(c.lastMsg.message).slice(0,30)):'';
-  return `<div class="chat-conv${c.key===chatChannel?' active':''}" onclick="switchChannel('${c.key}')">
-    <div class="chat-conv-info"><div class="chat-conv-name">${c.name}</div>${preview?`<div class="chat-conv-preview">${preview}</div>`:''}</div>
+  const preview=c.lastMsg?(c.lastMsg.deleted_at?'[已撤回 Withdrawn]':esc(chatPreviewText(c.lastMsg)).slice(0,30)):'';
+  return `<div class="chat-conv${c.key===chatChannel?' active':''}" data-key="${c.key}" onclick="switchChannel('${c.key}')">
+    <div class="chat-conv-info"><div class="chat-conv-name">${esc(c.name)}</div>${preview?`<div class="chat-conv-preview">${preview}</div>`:''}</div>
     ${c.unread>0?`<span class="chat-unread">${c.unread}</span>`:''}</div>`;
 }
 
 async function switchChannel(key){
   chatChannel=key;
-  // Update header
   const header=document.getElementById('chatHeader');
   if(header)header.textContent=channelName(key);
-  // Update active state in list
-  document.querySelectorAll('.chat-conv').forEach(el=>{
-    el.classList.toggle('active',el.onclick.toString().includes("'"+key+"'"));
-  });
-  // Update input area
+  document.querySelectorAll('.chat-conv').forEach(el=>el.classList.toggle('active',el.dataset.key===key));
   const chatMain=document.querySelector('.chat-main');
   if(chatMain){
-    const oldInput=chatMain.querySelector('.chat-input')||chatMain.querySelector('div:last-child');
-    if(canSendIn(key)){
-      if(!chatMain.querySelector('.chat-input')){
-        if(oldInput)oldInput.outerHTML=`<div class="chat-input"><input type="text" id="chatInput" placeholder="输入消息 Type a message..." onkeydown="if(event.key==='Enter')sendMsg()"><button onclick="sendMsg()">发送 Send</button></div>`;
-      }
-    }else{
-      const inp=chatMain.querySelector('.chat-input');
-      if(inp)inp.outerHTML='<div style="padding:12px 16px;text-align:center;color:var(--text3);font-size:.82rem;background:#fff;border-top:1px solid var(--border)">查看模式 View only</div>';
-    }
+    const bar=chatMain.querySelector('.chat-input,.chat-input-viewonly');
+    if(bar)bar.outerHTML=canSendIn(key)?chatInputHtml():CHAT_VIEWONLY_HTML;
   }
+  const c=document.getElementById('chatMsgs');if(c)c.innerHTML='';
+  chatLastSig='';chatStickBottom=true; // 切换后一定跳到最新消息
   await loadChatMessages();
-  // Don't mark as read here - only mark when user replies (in sendMsg)
-  // Update unread in list
-  const badge=document.querySelector('.chat-conv.active .chat-unread');
-  // Keep badge visible to remind user to reply
+  refreshChatUnread();
 }
 
 async function loadChatMessages(){
   const container=document.getElementById('chatMsgs');
   if(!container)return;
+  const key=chatChannel;
   let msgs=[];
-  try{msgs=await sb.get('tks_messages','channel_key=eq.'+chatChannel+'&order=created_at.asc&limit=200');if(!Array.isArray(msgs))msgs=[];}catch(e){msgs=[];}
+  // 取最新的 200 条（倒序取，再翻回正序显示）
+  try{msgs=await sb.get('tks_messages','channel_key=eq.'+encodeURIComponent(key)+'&order=created_at.desc&limit=200');if(!Array.isArray(msgs))msgs=[];}catch(e){return;}
+  if(key!==chatChannel)return; // 请求回来时已经切到别的聊天了
+  msgs.reverse();
+  // 看到了就算已读
+  if(msgs.length&&!document.hidden)await markRead(key,msgs[msgs.length-1].created_at);
+  const sig=key+'|'+msgs.length+'|'+(msgs.length?msgs[msgs.length-1].id:'')+'|'+msgs.filter(m=>m.deleted_at).length;
+  if(sig===chatLastSig)return; // 没有新内容，不重画
+  chatLastSig=sig;
   if(!msgs.length){container.innerHTML='<div class="chat-empty">暂无消息<br>No messages yet</div>';return;}
   const isAdmin=isTop();
   let h='';let lastDate='';
@@ -1578,28 +1591,29 @@ async function loadChatMessages(){
     const d=formatDate(m.created_at);
     if(d!==lastDate){lastDate=d;h+=`<div class="chat-date-sep">${d}</div>`;}
     const mine=m.sender_id===U.id;
-    const sender=staffList.find(s=>s.id===m.sender_id);
     const isDeleted=!!m.deleted_at;
-    // Determine what to show
+    const img=chatImgUrl(m);
     let bubbleContent,bubbleClass='cm-bubble';
-    if(isDeleted&&!isAdmin){
-      bubbleContent='[已撤回 Message withdrawn]';bubbleClass='cm-bubble cm-deleted';
-    }else if(isDeleted&&isAdmin){
-      bubbleContent=esc(m.message);bubbleClass='cm-bubble cm-deleted-admin';
-    }else{
-      bubbleContent=esc(m.message);
+    if(isDeleted&&!isAdmin){bubbleContent='[已撤回 Message withdrawn]';bubbleClass+=' cm-deleted';}
+    else{
+      bubbleContent=img?`<a href="${esc(img)}" target="_blank"><img class="cm-img" src="${esc(img)}" loading="lazy" alt="photo"></a>`:esc(m.message);
+      if(img)bubbleClass+=' cm-bubble-img';
+      if(isDeleted)bubbleClass+=' cm-deleted-admin';
     }
-    // Delete button: own messages can delete, admin can delete any
     const canDel=!isDeleted&&(mine||isAdmin);
     h+=`<div class="chat-msg ${mine?'mine':'other'}">
-      <div class="cm-name">${mine?'You 你':esc(sender?.display_name||'?')}</div>
+      <div class="cm-name">${mine?'You 你':esc(chatPersonName(m.sender_id))}</div>
       <div class="${bubbleClass}">${bubbleContent}</div>
       <div class="cm-time">${formatTime(m.created_at)}${canDel?` <span class="cm-del" onclick="deleteMsg('${m.id}')" title="撤回 Delete">🗑️</span>`:''}</div>
     </div>`;
   }
-  const wasAtBottom=container.scrollHeight-container.scrollTop-container.clientHeight<50;
+  const stick=chatStickBottom||container.scrollHeight-container.scrollTop-container.clientHeight<50;
+  chatStickBottom=false;
   container.innerHTML=h;
-  if(wasAtBottom)container.scrollTop=container.scrollHeight;
+  if(stick){
+    container.scrollTop=container.scrollHeight;
+    container.querySelectorAll('img.cm-img').forEach(i=>i.addEventListener('load',()=>{container.scrollTop=container.scrollHeight},{once:true}));
+  }
 }
 
 async function sendMsg(){
@@ -1608,12 +1622,33 @@ async function sendMsg(){
   const msg=input.value.trim();
   if(!msg)return;
   input.value='';
+  await postChatMessage(msg,()=>{input.value=msg;});
+}
+async function postChatMessage(text,onFail){
   try{
-    await sb.post('tks_messages',{channel_key:chatChannel,sender_id:U.id,message:msg});
+    const r=await sb.post('tks_messages',{channel_key:chatChannel,sender_id:U.id,message:text});
+    if(!Array.isArray(r))throw new Error('post failed');
+    chatStickBottom=true;
     await loadChatMessages();
-    markRead(chatChannel); // Only mark as read when you REPLY
-    updateChatUnreadList();
-  }catch(e){toast('❌ 发送失败 Send failed');input.value=msg;}
+    refreshChatUnread();
+  }catch(e){toast('❌ 发送失败 Send failed');if(onFail)onFail();}
+}
+async function sendChatImage(file){
+  if(!file||!file.type||!file.type.startsWith('image/'))return;
+  if(chatSending)return;
+  chatSending=true;
+  toast('📤 图片上传中... Uploading photo...');
+  try{
+    const url=await uploadImage(file,'chat'); // 已自动压缩到 1000px 以内
+    await postChatMessage(CHAT_IMG_PREFIX+url);
+  }catch(e){toast('❌ 图片上传失败 Photo upload failed');}
+  chatSending=false;
+}
+function chatPaste(e){
+  const items=(e.clipboardData&&e.clipboardData.items)||[];
+  for(const it of items){
+    if(it.kind==='file'&&it.type.startsWith('image/')){e.preventDefault();sendChatImage(it.getAsFile());return;}
+  }
 }
 
 async function deleteMsg(id){
@@ -1624,76 +1659,62 @@ async function deleteMsg(id){
   }catch(e){toast('❌ 操作失败 Failed');}
 }
 
-async function markRead(key){
-  try{await sb.upsert('tks_read_status',{user_id:U.id,channel_key:key,last_read_at:new Date().toISOString()});}catch(e){}
+// 已读记录：先更新，没有就新增（不依赖数据库唯一约束）。用服务器上的消息时间，避免电脑时钟不准
+const chatReadMarked={};
+async function markRead(key,upTo){
+  if(!upTo||chatReadMarked[key]===upTo)return;
+  try{
+    const r=await sb.patch('tks_read_status',{user_id:U.id,channel_key:key},{last_read_at:upTo});
+    if(!Array.isArray(r)||!r.length)await sb.post('tks_read_status',{user_id:U.id,channel_key:key,last_read_at:upTo});
+    chatReadMarked[key]=upTo;
+  }catch(e){}
 }
 
 function startChatPoll(){
   stopChatPoll();
   chatPollTimer=setInterval(async()=>{
     if(currentTab!=='chat')return;
-    await loadChatMessages();
-    updateChatBadge();
-    updateChatUnreadList();
+    if(!document.hidden)await loadChatMessages(); // 窗口在后台时不刷消息，只查未读（用于提醒）
+    refreshChatUnread();
   },5000);
 }
 function stopChatPoll(){if(chatPollTimer){clearInterval(chatPollTimer);chatPollTimer=null;}}
 
-async function updateChatUnreadList(){
-  // Refresh unread badges in conversation list without re-rendering everything
-  try{
-    const msgs=await sb.get('tks_messages','order=created_at.desc&limit=300');
-    if(!Array.isArray(msgs))return;
-    const rs=await sb.get('tks_read_status','user_id=eq.'+U.id);
-    const readMap={};if(Array.isArray(rs))rs.forEach(r=>{readMap[r.channel_key]=new Date(r.last_read_at)});
-    // Update each conv item
-    document.querySelectorAll('.chat-conv').forEach(el=>{
-      const onclick=el.getAttribute('onclick')||el.onclick?.toString()||'';
-      const match=onclick.match(/switchChannel\('([^']+)'\)/);
-      if(!match)return;
-      const key=match[1];
-      const lastRead=readMap[key]||new Date(0);
-      const unread=msgs.filter(m=>m.channel_key===key&&new Date(m.created_at)>lastRead&&m.sender_id!==U.id&&!m.deleted_at).length;
-      const existing=el.querySelector('.chat-unread');
-      if(unread>0){
-        if(existing)existing.textContent=unread;
-        else{const span=document.createElement('span');span.className='chat-unread';span.textContent=unread;el.appendChild(span);}
-      }else{
-        if(existing)existing.remove();
-      }
-    });
-  }catch(e){}
+// 一次请求同时更新：聊天列表红点 + 左侧菜单红点 + 提醒
+async function refreshChatUnread(){
+  const {msgs,unread}=await fetchChatState(300);
+  document.querySelectorAll('.chat-conv').forEach(el=>{
+    const n=unread[el.dataset.key]||0;
+    const existing=el.querySelector('.chat-unread');
+    if(n>0){
+      if(existing)existing.textContent=n;
+      else{const span=document.createElement('span');span.className='chat-unread';span.textContent=n;el.appendChild(span);}
+    }else if(existing)existing.remove();
+  });
+  applyChatBadge(msgs,unread);
 }
-
-async function updateChatBadge(){
-  try{
-    const msgs=await sb.get('tks_messages','order=created_at.desc&limit=200');
-    if(!Array.isArray(msgs))return;
-    const rs=await sb.get('tks_read_status','user_id=eq.'+U.id);
-    const readMap={};if(Array.isArray(rs))rs.forEach(r=>{readMap[r.channel_key]=new Date(r.last_read_at)});
-    let total=0;let newestMsg=null;
-    const counted=new Set();
-    msgs.forEach(m=>{
-      if(m.sender_id===U.id||m.deleted_at)return;
-      if(m.channel_key.startsWith('dm_')&&!m.channel_key.replace('dm_','').split('_').includes(U.id))return;
-      const lastRead=readMap[m.channel_key]||new Date(0);
-      if(new Date(m.created_at)>lastRead&&!counted.has(m.id)){counted.add(m.id);total++;if(!newestMsg)newestMsg=m;}
-    });
-    // Notify if NEW messages arrived since last check
-    if(total>lastKnownUnread&&newestMsg){
-      const sender=staffList.find(s=>s.id===newestMsg.sender_id);
-      showDesktopNotif('💬 '+(sender?.display_name||'New message'),newestMsg.message.slice(0,80));
+function applyChatBadge(msgs,unread){
+  let total=0;
+  for(const k in unread)if(isMyChannel(k))total+=unread[k];
+  if(total>lastKnownUnread){
+    const newestMsg=msgs.find(m=>m.sender_id!==U.id&&!m.deleted_at&&isMyChannel(m.channel_key)&&unread[m.channel_key]);
+    if(newestMsg){
+      showDesktopNotif('💬 '+chatPersonName(newestMsg.sender_id),chatPreviewText(newestMsg).slice(0,80));
       playNotifSound();
     }
-    lastKnownUnread=total;
-    chatUnreadTotal=total;
-    // Update sidebar badge
-    const nav=document.getElementById('nav_chat');
-    if(nav){const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
-      if(total>0)nav.innerHTML+='<span class="nav-badge">'+total+'</span>';}
-    // Update page title
-    document.title=total>0?'('+total+') TK Store Manager':'TK Store Manager';
-  }catch(e){}
+  }
+  lastKnownUnread=total;
+  chatUnreadTotal=total;
+  const nav=document.getElementById('nav_chat');
+  if(nav){const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
+    if(total>0)nav.insertAdjacentHTML('beforeend','<span class="nav-badge">'+total+'</span>');}
+  document.title=total>0?'('+total+') TK Store Manager':'TK Store Manager';
+}
+// 不在聊天页时，每 10 秒查一次未读（在聊天页时由上面的轮询负责，避免重复请求）
+async function updateChatBadge(){
+  if(chatPollTimer&&currentTab==='chat')return;
+  const {msgs,unread}=await fetchChatState(200);
+  applyChatBadge(msgs,unread);
 }
 
 // ---- NOTIFICATIONS ----
