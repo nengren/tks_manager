@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-05-v51-chat-fixes-images -->
+<!-- BUILD-VERSION: 2026-11-06-v52-remove-passwords -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -100,8 +100,6 @@ text-align:center;cursor:pointer;transition:all .15s}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
 .badge-secretary{background:#fdf4ff;color:#a21caf}
-.pw-mask{letter-spacing:2px;font-family:monospace}
-.pw-cell{display:flex;align-items:center;gap:8px}
 .sheet-table{width:100%;border-collapse:collapse;font-size:.8rem}
 .sheet-table th{position:sticky;top:0;background:#f8fafc;text-align:left;padding:6px 8px;border:1px solid var(--border);font-size:.68rem;text-transform:uppercase;color:var(--text2)}
 .sheet-table td{padding:5px 8px;border:1px solid #f1f5f9;white-space:nowrap}
@@ -385,7 +383,7 @@ function showReminderModal(todos){
 /* ---- NAV ---- */
 function buildNav(){
   const topTier=(U.role==='admin'||U.role==='S'); // 最顶层：admin + S，看到所有，能管用户/店铺
-  const canPw=topTier||U.role==='secretary'; // 密码库/开支：topTier + secretary（含被设成secretary的T/E）
+  const canPw=topTier||U.role==='secretary'; // 开支：topTier + secretary（含被设成secretary的T/E）
   const isPlainStaff=U.role==='staff';
   let tabs;
   if(isPlainStaff){
@@ -404,7 +402,6 @@ function buildNav(){
       {id:'issues',icon:'⚠️',label:'问题 Issues'},
       {id:'sop',icon:'📖',label:'SOP'},
     ];
-    if(canPw)tabs.push({id:'passwords',icon:'🔐',label:'密码库 Passwords'});
     if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
     if(topTier)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
   }
@@ -426,7 +423,7 @@ function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,chat:rChat,todos:rTodos,score:rScoreHub,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,passwords:rPasswords,expenses:rExpenses};
+  const render={home:rHome,chat:rChat,todos:rTodos,score:rScoreHub,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,expenses:rExpenses};
   if(render[id])render[id](m);
 }
 
@@ -660,84 +657,6 @@ async function archiveTodo(id){
   try{await sb.patch('tks_todos',{id},{status:'archived'});
     toast('🗑️ 已归档 Archived');updateTodoBadge();rTodos(document.getElementById('mainBody'));}
   catch(e){toast('❌ 操作失败 Failed')}
-}
-
-/* ---- PASSWORDS ---- */
-let pwRevealed={};
-async function rPasswords(el){
-  if(!(isTop()||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
-  let h=`<div class="main-header"><h1>🔐 密码账号库 Password Vault</h1><p>Password &amp; Account Vault &middot; 仅管理员和秘书可见 Admin &amp; Secretary only</p></div>`;
-  h+=`<div class="card"><h3>➕ 新增账号 Add Account</h3>
-    <div class="form-row" style="margin-top:14px">
-      <div class="fg"><label>平台/用途 Platform *</label><input type="text" id="pwPlatform" placeholder="例如 e.g. TikTok Shop 店铺A Store A"></div>
-      <div class="fg"><label>账号 Account *</label><input type="text" id="pwAccount"></div>
-    </div>
-    <div class="form-row">
-      <div class="fg"><label>密码 Password *</label><input type="text" id="pwPassword"></div>
-      <div class="fg"><label>备注 Note</label><input type="text" id="pwNote"></div>
-    </div>
-    <button class="btn btn-pri" onclick="addPassword()" style="max-width:240px">➕ 添加 Add</button>
-  </div>`;
-  h+='<div class="sec-title">账号列表 Account List</div><div class="card">';
-  let rows;
-  try{rows=await sb.rpc('tks_get_passwords',{p_user_id:U.id})}catch(e){rows=null}
-  if(!Array.isArray(rows)){
-    h+='<div style="color:var(--bad);font-size:.85rem;padding:12px 0">⚠️ 无法加载密码库，可能是数据库函数尚未配置（tks_get_passwords）。Failed to load — the database function may not be set up yet.</div>';
-  }else if(rows.length===0){
-    h+='<div style="color:var(--text3);text-align:center;padding:24px">暂无记录 No accounts yet</div>';
-  }else{
-    h+='<table class="score-table"><thead><tr><th>平台/用途 Platform</th><th>账号 Account</th><th>密码 Password</th><th>备注 Note</th><th>操作 Actions</th></tr></thead><tbody>';
-    for(const p of rows){
-      const revealed=!!pwRevealed[p.id];
-      h+=`<tr>
-        <td><b>${esc(p.platform)}</b></td>
-        <td>${esc(p.account)}</td>
-        <td><div class="pw-cell"><span class="pw-mask" id="pwval_${p.id}">${revealed?esc(p.password):'••••••••'}</span>
-          <button class="btn btn-ghost btn-sm" onclick="togglePw('${p.id}','${esc(p.password)}')">${revealed?'🙈':'👁️'}</button>
-          <button class="btn btn-ghost btn-sm" onclick="copyPw('${esc(p.password)}')">📋</button></div></td>
-        <td style="font-size:.8rem;color:var(--text2)">${esc(p.note||'—')}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="editPassword('${p.id}','${esc(p.platform)}','${esc(p.account)}','${esc(p.password)}','${esc(p.note||'')}')">✏️</button>
-          <button class="btn btn-ghost btn-sm" onclick="delPassword('${p.id}','${esc(p.platform)}')">🗑️</button></td>
-      </tr>`;
-    }
-    h+='</tbody></table>';
-  }
-  h+='</div>';
-  el.innerHTML=h;
-}
-function togglePw(id,val){
-  pwRevealed[id]=!pwRevealed[id];
-  const span=document.getElementById('pwval_'+id);
-  if(span)span.textContent=pwRevealed[id]?val:'••••••••';
-  rPasswords(document.getElementById('mainBody'));
-}
-function copyPw(val){
-  navigator.clipboard.writeText(val).then(()=>toast('✅ 已复制 Copied')).catch(()=>toast('❌ 复制失败 Copy failed'));
-}
-async function addPassword(){
-  const platform=document.getElementById('pwPlatform').value.trim();
-  const account=document.getElementById('pwAccount').value.trim();
-  const password=document.getElementById('pwPassword').value.trim();
-  const note=document.getElementById('pwNote').value.trim();
-  if(!platform||!account||!password){toast('请填写平台、账号和密码 Please fill in platform, account and password');return}
-  const r=await sb.rpc('tks_add_password',{p_user_id:U.id,p_platform:platform,p_account:account,p_password:password,p_note:note||null});
-  if(r&&r.success!==false){toast('✅ 已添加 Added');['pwPlatform','pwAccount','pwPassword','pwNote'].forEach(i=>document.getElementById(i).value='');rPasswords(document.getElementById('mainBody'));}
-  else toast('❌ 添加失败 Add failed: '+(r&&r.message||'请检查数据库函数 Check database function'));
-}
-async function editPassword(id,platform,account,password,note){
-  const np=prompt('平台/用途 Platform:',platform);if(np===null)return;
-  const na=prompt('账号 Account:',account);if(na===null)return;
-  const npw=prompt('密码 Password:',password);if(npw===null)return;
-  const nn=prompt('备注 Note:',note);if(nn===null)return;
-  const r=await sb.rpc('tks_update_password',{p_user_id:U.id,p_id:id,p_platform:np.trim(),p_account:na.trim(),p_password:npw.trim(),p_note:nn.trim()||null});
-  if(r&&r.success!==false){toast('✅ 已更新 Updated');rPasswords(document.getElementById('mainBody'));}
-  else toast('❌ 更新失败 Update failed: '+(r&&r.message||'请检查数据库函数 Check database function'));
-}
-async function delPassword(id,name){
-  if(!confirm('删除 Delete "'+name+'" 这条账号记录？\nDelete this account record?'))return;
-  const r=await sb.rpc('tks_delete_password',{p_user_id:U.id,p_id:id});
-  if(r&&r.success!==false){toast('🗑️ 已删除 Deleted');rPasswords(document.getElementById('mainBody'));}
-  else toast('❌ 删除失败 Delete failed: '+(r&&r.message||'请检查数据库函数 Check database function'));
 }
 
 /* ---- EXPENSES ---- */
