@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-06-v52-remove-passwords -->
+<!-- BUILD-VERSION: 2026-11-06-v53-cs-templates -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -97,6 +97,7 @@ text-align:center;cursor:pointer;transition:all .15s}
 .sop-step .s-zh{font-weight:500}
 .sop-step .s-en{color:var(--text2)}
 .sop-tpl{background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:.8rem;color:var(--text2);white-space:pre-wrap}
+.cs-card{padding:16px 20px}.cs-q{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;font-size:.88rem}.cs-actions{display:flex;gap:6px;flex-shrink:0}.cs-actions .btn{width:auto}.cs-en{color:var(--text2);font-size:.8rem;font-weight:400}.cs-tip{margin-top:8px;font-size:.8rem;color:#92400e;background:var(--warn-bg);padding:6px 10px;border-radius:6px}.cs-reply{margin-top:10px;background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.84rem;white-space:pre-wrap;line-height:1.6}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
 .badge-secretary{background:#fdf4ff;color:#a21caf}
@@ -391,6 +392,7 @@ function buildNav(){
     tabs=[
       {id:'chat',icon:'💬',label:'聊天 Chat'},
       {id:'todos',icon:'📋',label:'待办 Todos'},
+      {id:'sop',icon:'📝',label:'客服模板 CS Templates'},
       {id:'stores',icon:'🏪',label:'店铺 Stores'},
     ];
   }else{
@@ -400,7 +402,7 @@ function buildNav(){
       {id:'todos',icon:'📋',label:'待办 Todos'},
       {id:'score',icon:'📊',label:'分数与奖励 Scores & Rewards'},
       {id:'issues',icon:'⚠️',label:'问题 Issues'},
-      {id:'sop',icon:'📖',label:'SOP'},
+      {id:'sop',icon:'📝',label:'客服模板 CS Templates'},
     ];
     if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
     if(topTier)tabs.push({id:'_sep'},{id:'stores',icon:'🏪',label:'店铺 Stores'},{id:'users',icon:'👥',label:'用户 Users'});
@@ -1288,14 +1290,124 @@ async function loadIssues(){
   h+='</tbody></table></div>';c.innerHTML=h;
 }
 
-/* ---- SOP ---- */
-function rSOP(el){
+/* ---- CS TEMPLATES (客服模板，存在数据库 tks_cs_templates，admin/S/秘书可编辑，所有人可看可复制) ---- */
+const CS_CATS=[
+  {v:'before',zh:'A. 下单后 / 发货前',en:'Before Shipping'},
+  {v:'thanks',zh:'B. 感谢 / 邀请评价（每单只发一次）',en:'Thank You & Review Request (once per order)'},
+  {v:'review',zh:'C. 回复评价',en:'Replying to Reviews'},
+  {v:'other',zh:'D. 其他',en:'Other'}
+];
+let csTpls=[],csQuery='',csEditingId=null,csLoadError=false;
+const csCanEdit=()=>isTop()||U.role==='secretary';
+async function rSOP(el){
+  let rows;
+  try{rows=await sb.get('tks_cs_templates','order=sort_order.asc,created_at.asc');}catch(e){rows=null}
+  csLoadError=!Array.isArray(rows);
+  csTpls=csLoadError?[]:rows;
+  let h=`<div class="main-header"><h1>📝 客服模板 CS Templates</h1><p>找到客户的问题，点"复制"，粘贴到 TikTok 回复 · Find the customer's question, click "Copy", paste it in TikTok</p></div>
+    <div class="card" style="background:var(--warn-bg);border-color:#fde68a;font-size:.85rem">
+      <b>⚠️ 规则 Rules:</b> ① 把 ma'am/sir 按客户情况改一下 ② 每个订单只邀请评价一次 ③ <b>绝对不要请客户修改或删除评价</b>，会被平台扣分甚至封店<br>
+      <span style="color:var(--text2)">① Adjust ma'am/sir for the customer ② Ask for a review only ONCE per order ③ <b>NEVER ask a customer to change or delete a review</b> — the platform will give violation points or close the store</span></div>`;
+  if(csLoadError)h+='<div class="card" style="color:var(--bad)">⚠️ 模板表还没建好，请管理员先在 Supabase 运行建表 SQL。<br>Template table not found — admin needs to run the setup SQL in Supabase.</div>';
+  h+=`<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="csSearch" placeholder="🔍 搜索问题或回复，例如 mm、yard、refund · Search, e.g. mm, yard, refund" value="${esc(csQuery)}" oninput="csQuery=this.value;renderCsList()" style="flex:1;min-width:240px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;font-family:inherit">
+      ${csCanEdit()&&!csLoadError?`<button class="btn btn-pri btn-sm" style="width:auto" onclick="csOpenEditor(null)">➕ 新增模板 Add Template</button>`:''}
+    </div>
+    <div id="csEditor"></div>
+    <div id="csList"></div>
+    <div class="sec-title" style="margin-top:28px">📖 处理流程 SOP · Standard Operating Procedures</div>
+    ${sopProcessHtml()}`;
+  el.innerHTML=h;
+  csEditingId=null;
+  renderCsList();
+}
+function renderCsList(){
+  const box=document.getElementById('csList');if(!box)return;
+  const q=csQuery.trim().toLowerCase();
+  const match=t=>!q||[t.question_zh,t.question_en,t.tip_zh,t.tip_en,t.reply].some(x=>(x||'').toLowerCase().includes(q));
+  const list=csTpls.filter(match);
+  if(!list.length){box.innerHTML=`<div class="card" style="text-align:center;color:var(--text3)">${csTpls.length?'没有找到 No match':'暂无模板 No templates yet'}</div>`;return}
+  const cats=[...CS_CATS];
+  list.forEach(t=>{if(!cats.find(c=>c.v===t.category))cats.push({v:t.category,zh:t.category,en:''})});
+  let h='';
+  for(const c of cats){
+    const items=list.filter(t=>(t.category||'other')===c.v);
+    if(!items.length)continue;
+    h+=`<div class="sec-title">${esc(c.zh)} · ${esc(c.en)}</div>`;
+    for(const t of items){
+      h+=`<div class="card cs-card">
+        <div class="cs-q"><div><b>❓ ${esc(t.question_zh)}</b>${t.question_en?`<br><span class="cs-en">${esc(t.question_en)}</span>`:''}</div>
+          <div class="cs-actions"><button class="btn btn-pri btn-sm" onclick="csCopy('${t.id}',this)">📋 复制 Copy</button>
+          ${csCanEdit()?`<button class="btn btn-ghost btn-sm" onclick="csOpenEditor('${t.id}')" title="编辑 Edit">✏️</button><button class="btn btn-ghost btn-sm" onclick="csDelete('${t.id}')" title="删除 Delete">🗑️</button>`:''}</div></div>
+        ${t.tip_zh||t.tip_en?`<div class="cs-tip">💡 ${esc(t.tip_zh||'')}${t.tip_en?`<br><span class="cs-en">${esc(t.tip_en)}</span>`:''}</div>`:''}
+        <div class="cs-reply">${esc(t.reply)}</div>
+      </div>`;
+    }
+  }
+  box.innerHTML=h;
+}
+async function csCopy(id,btn){
+  const t=csTpls.find(x=>x.id===id);if(!t)return;
+  let ok=false;
+  try{await navigator.clipboard.writeText(t.reply);ok=true;}catch(e){
+    try{const ta=document.createElement('textarea');ta.value=t.reply;document.body.appendChild(ta);ta.select();ok=document.execCommand('copy');ta.remove();}catch(e2){}
+  }
+  if(ok){toast('✅ 已复制 Copied');if(btn){const o=btn.innerHTML;btn.innerHTML='✅ 已复制 Copied';setTimeout(()=>{btn.innerHTML=o},1500);}}
+  else toast('❌ 复制失败，请手动选中复制 Copy failed, please select and copy manually');
+}
+function csOpenEditor(id){
+  const box=document.getElementById('csEditor');if(!box)return;
+  csEditingId=id;
+  const t=id?csTpls.find(x=>x.id===id):{category:'before',sort_order:(csTpls.length+1)*10};
+  if(!t)return;
+  box.innerHTML=`<div class="card" style="border-color:var(--pri)">
+    <div class="sec-title" style="margin-top:0">${id?'✏️ 编辑模板 Edit Template':'➕ 新增模板 Add Template'}</div>
+    <div class="form-row">
+      <div class="fg"><label>分类 Category</label><select id="csCat">${CS_CATS.map(c=>`<option value="${c.v}"${c.v===t.category?' selected':''}>${c.zh} ${c.en}</option>`).join('')}</select></div>
+      <div class="fg"><label>排序（小的在前）Order (smaller first)</label><input type="number" id="csSort" value="${t.sort_order??0}"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>客户的问题（中文）Question (Chinese) *</label><input type="text" id="csQzh" value="${esc(t.question_zh||'')}"></div>
+      <div class="fg"><label>客户的问题（英文）Question (English) *</label><input type="text" id="csQen" value="${esc(t.question_en||'')}"></div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>提示（中文，可选）Tip (Chinese, optional)</label><input type="text" id="csTzh" value="${esc(t.tip_zh||'')}"></div>
+      <div class="fg"><label>提示（英文，可选）Tip (English, optional)</label><input type="text" id="csTen" value="${esc(t.tip_en||'')}"></div>
+    </div>
+    <div class="fg"><label>标准回复（客户看到的内容）Standard Reply (what the customer sees) *</label><textarea id="csReply" rows="6">${esc(t.reply||'')}</textarea></div>
+    <div style="display:flex;gap:10px"><button class="btn btn-pri" style="width:auto" onclick="csSave()">💾 保存 Save</button><button class="btn btn-ghost" style="width:auto" onclick="csCloseEditor()">✕ 取消 Cancel</button></div>
+  </div>`;
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function csCloseEditor(){csEditingId=null;const b=document.getElementById('csEditor');if(b)b.innerHTML='';}
+async function csSave(){
+  const v=id=>document.getElementById(id).value.trim();
+  const d={category:v('csCat'),sort_order:parseInt(v('csSort'))||0,question_zh:v('csQzh'),question_en:v('csQen'),tip_zh:v('csTzh')||null,tip_en:v('csTen')||null,reply:document.getElementById('csReply').value.trim(),updated_by:U.id,updated_at:new Date().toISOString()};
+  if(!d.question_zh||!d.question_en||!d.reply){toast('请填写中英文问题和标准回复 Please fill in both questions and the reply');return}
+  try{
+    let r;
+    if(csEditingId)r=await sb.patch('tks_cs_templates',{id:csEditingId},d);
+    else r=await sb.post('tks_cs_templates',{...d,created_by:U.id});
+    if(!Array.isArray(r)||!r.length)throw new Error((r&&r.message)||'');
+    toast('✅ 已保存 Saved');
+    rSOP(document.getElementById('mainBody'));
+  }catch(e){toast('❌ 保存失败 Save failed '+(e.message||''))}
+}
+async function csDelete(id){
+  const t=csTpls.find(x=>x.id===id);if(!t)return;
+  if(!confirm('删除模板「'+t.question_zh+'」？\nDelete this template?'))return;
+  try{const r=await sb.del('tks_cs_templates',{id});if(!r.ok)throw 0;toast('🗑️ 已删除 Deleted');rSOP(document.getElementById('mainBody'));}
+  catch(e){toast('❌ 删除失败 Delete failed')}
+}
+
+/* ---- SOP 处理流程（固定内容，显示在客服模板页下方） ---- */
+function sopProcessHtml(){
   const sops=[
     {zh:'⭐ 差评处理',en:'Handling Negative Reviews',impact:'Product Satisfaction 45%',steps:[
       {zh:'在Seller Center→Reviews找到差评，查看订单详情',en:'Find review in Seller Center→Reviews, check order'},
       {zh:'24小时内通过Messages联系客户，不要等！',en:'Contact customer via Messages within 24hrs. Do NOT wait!'},
       {zh:'先道歉，再提供方案：退款/补发/折扣，让客户选择',en:'Apologize first, offer options: refund/replacement/discount'},
-      {zh:'问题解决后礼貌询问是否愿意修改评价',en:'After resolving, politely ask if they\'d update the review'},
+      {zh:'问题解决后，感谢客户耐心；⚠️ 绝对不要请客户修改或删除评价（平台违规）',en:'After resolving, thank the customer; ⚠️ NEVER ask them to change or delete the review (platform violation)'},
       {zh:'记录到问题日志，勾选"导致差评"',en:'Log in Issue Log, check "Caused negative review"'},
     ],tpl:'Hi! We\'re really sorry about the issue. Would you prefer:\n1) Full refund\n2) Free replacement\n3) Discount on next order\n\nPlease let us know! 🙏'},
     {zh:'🔄 退货退款处理',en:'Return & Refund Handling',impact:'Seller-Fault R&R Rate 45%',steps:[
@@ -1336,8 +1448,7 @@ function rSOP(el){
       {zh:'已发货→告知可收货后申请退货',en:'Already shipped → inform they can return after receiving'},
     ],tpl:'Hi! To cancel, use TikTok Shop app:\nMe → Orders → Select order → Cancel\n\nIf received, apply for return from same page. 😊'},
   ];
-  let h=`<div class="main-header"><h1>📖 SOP 标准操作流程</h1><p>Standard Operating Procedures</p></div>
-    <div class="card" style="background:var(--warn-bg);border-color:#fde68a"><p style="font-size:.85rem">
+  let h=`<div class="card" style="background:var(--warn-bg);border-color:#fde68a"><p style="font-size:.85rem">
     <b>⚡ 重要提醒 Important:</b> 产品满意度(45%)最重要！每个SOP标注了影响的指标权重。<br>
     <span style="color:var(--text2)">Product Satisfaction (45%) is most important! Each SOP shows the metric weight it affects.</span></p></div>`;
   for(const s of sops){
@@ -1350,7 +1461,7 @@ function rSOP(el){
         <div style="margin-top:16px"><b>📋 回复模板 Reply Template:</b></div>
         <div class="sop-tpl">${esc(s.tpl)}</div>
       </div></div>`}
-  el.innerHTML=h;
+  return h;
 }
 
 /* ---- CHAT ---- */
