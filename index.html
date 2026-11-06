@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-06-v53-cs-templates -->
+<!-- BUILD-VERSION: 2026-11-07-v54-cs-templates-fix -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1306,8 +1306,10 @@ async function rSOP(el){
   csTpls=csLoadError?[]:rows;
   let h=`<div class="main-header"><h1>📝 客服模板 CS Templates</h1><p>找到客户的问题，点"复制"，粘贴到 TikTok 回复 · Find the customer's question, click "Copy", paste it in TikTok</p></div>
     <div class="card" style="background:var(--warn-bg);border-color:#fde68a;font-size:.85rem">
-      <b>⚠️ 规则 Rules:</b> ① 把 ma'am/sir 按客户情况改一下 ② 每个订单只邀请评价一次 ③ <b>绝对不要请客户修改或删除评价</b>，会被平台扣分甚至封店<br>
-      <span style="color:var(--text2)">① Adjust ma'am/sir for the customer ② Ask for a review only ONCE per order ③ <b>NEVER ask a customer to change or delete a review</b> — the platform will give violation points or close the store</span></div>`;
+      <div style="font-weight:700;margin-bottom:6px">⚠️ 使用规则（新客服必读）· Rules for New CS (Must Read)</div>
+      <div>1. 先判断属于哪个场景，复制对应模板，<b>ma'am/sir 根据客户情况改一下</b>。<br><span style="color:var(--text2)">First find which situation it is, copy that template, and <b>adjust ma'am/sir for the customer</b>.</span></div>
+      <div style="margin-top:4px">2. 同一个订单，<b>只邀请评价一次</b>，不要反复催。<br><span style="color:var(--text2)">Ask for a review <b>only ONCE per order</b>. Do not keep asking.</span></div>
+      <div style="margin-top:4px">3. <b>绝对不要请客户修改或删除已经给出的评分</b>。会被平台扣分，严重的会封店。<br><span style="color:var(--text2)"><b>NEVER ask a customer to change or delete a rating they already gave.</b> The platform will give violation points, and serious cases can get the store closed.</span></div></div>`;
   if(csLoadError)h+='<div class="card" style="color:var(--bad)">⚠️ 模板表还没建好，请管理员先在 Supabase 运行建表 SQL。<br>Template table not found — admin needs to run the setup SQL in Supabase.</div>';
   h+=`<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <input type="text" id="csSearch" placeholder="🔍 搜索问题或回复，例如 mm、yard、refund · Search, e.g. mm, yard, refund" value="${esc(csQuery)}" oninput="csQuery=this.value;renderCsList()" style="flex:1;min-width:240px;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;font-family:inherit">
@@ -1336,7 +1338,7 @@ function renderCsList(){
     h+=`<div class="sec-title">${esc(c.zh)} · ${esc(c.en)}</div>`;
     for(const t of items){
       h+=`<div class="card cs-card">
-        <div class="cs-q"><div><b>❓ ${esc(t.question_zh)}</b>${t.question_en?`<br><span class="cs-en">${esc(t.question_en)}</span>`:''}</div>
+        <div class="cs-q"><div><b>❓ ${esc(t.question_zh||t.question_en)}</b>${t.question_zh&&t.question_en?`<br><span class="cs-en">${esc(t.question_en)}</span>`:''}</div>
           <div class="cs-actions"><button class="btn btn-pri btn-sm" onclick="csCopy('${t.id}',this)">📋 复制 Copy</button>
           ${csCanEdit()?`<button class="btn btn-ghost btn-sm" onclick="csOpenEditor('${t.id}')" title="编辑 Edit">✏️</button><button class="btn btn-ghost btn-sm" onclick="csDelete('${t.id}')" title="删除 Delete">🗑️</button>`:''}</div></div>
         ${t.tip_zh||t.tip_en?`<div class="cs-tip">💡 ${esc(t.tip_zh||'')}${t.tip_en?`<br><span class="cs-en">${esc(t.tip_en)}</span>`:''}</div>`:''}
@@ -1367,12 +1369,12 @@ function csOpenEditor(id){
       <div class="fg"><label>排序（小的在前）Order (smaller first)</label><input type="number" id="csSort" value="${t.sort_order??0}"></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>客户的问题（中文）Question (Chinese) *</label><input type="text" id="csQzh" value="${esc(t.question_zh||'')}"></div>
-      <div class="fg"><label>客户的问题（英文）Question (English) *</label><input type="text" id="csQen" value="${esc(t.question_en||'')}"></div>
+      <div class="fg"><label>Customer's question (English) 客户的问题（英文）*</label><input type="text" id="csQen" value="${esc(t.question_en||'')}"></div>
+      <div class="fg"><label>客户的问题（中文，可选）Question (Chinese, optional)</label><input type="text" id="csQzh" value="${esc(t.question_zh||'')}"></div>
     </div>
     <div class="form-row">
+      <div class="fg"><label>Tip (English, optional) 提示（英文，可选）</label><input type="text" id="csTen" value="${esc(t.tip_en||'')}"></div>
       <div class="fg"><label>提示（中文，可选）Tip (Chinese, optional)</label><input type="text" id="csTzh" value="${esc(t.tip_zh||'')}"></div>
-      <div class="fg"><label>提示（英文，可选）Tip (English, optional)</label><input type="text" id="csTen" value="${esc(t.tip_en||'')}"></div>
     </div>
     <div class="fg"><label>标准回复（客户看到的内容）Standard Reply (what the customer sees) *</label><textarea id="csReply" rows="6">${esc(t.reply||'')}</textarea></div>
     <div style="display:flex;gap:10px"><button class="btn btn-pri" style="width:auto" onclick="csSave()">💾 保存 Save</button><button class="btn btn-ghost" style="width:auto" onclick="csCloseEditor()">✕ 取消 Cancel</button></div>
@@ -1383,7 +1385,7 @@ function csCloseEditor(){csEditingId=null;const b=document.getElementById('csEdi
 async function csSave(){
   const v=id=>document.getElementById(id).value.trim();
   const d={category:v('csCat'),sort_order:parseInt(v('csSort'))||0,question_zh:v('csQzh'),question_en:v('csQen'),tip_zh:v('csTzh')||null,tip_en:v('csTen')||null,reply:document.getElementById('csReply').value.trim(),updated_by:U.id,updated_at:new Date().toISOString()};
-  if(!d.question_zh||!d.question_en||!d.reply){toast('请填写中英文问题和标准回复 Please fill in both questions and the reply');return}
+  if(!d.question_en||!d.reply){toast('Please fill in the English question and the reply 请填写英文问题和标准回复');return}
   try{
     let r;
     if(csEditingId)r=await sb.patch('tks_cs_templates',{id:csEditingId},d);
@@ -1395,7 +1397,7 @@ async function csSave(){
 }
 async function csDelete(id){
   const t=csTpls.find(x=>x.id===id);if(!t)return;
-  if(!confirm('删除模板「'+t.question_zh+'」？\nDelete this template?'))return;
+  if(!confirm('删除模板「'+(t.question_zh||t.question_en)+'」？\nDelete this template?'))return;
   try{const r=await sb.del('tks_cs_templates',{id});if(!r.ok)throw 0;toast('🗑️ 已删除 Deleted');rSOP(document.getElementById('mainBody'));}
   catch(e){toast('❌ 删除失败 Delete failed')}
 }
