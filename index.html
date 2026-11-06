@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-07-v54-cs-templates-fix -->
+<!-- BUILD-VERSION: 2026-11-07-v55-cs-templates-simplify -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1360,13 +1360,12 @@ async function csCopy(id,btn){
 function csOpenEditor(id){
   const box=document.getElementById('csEditor');if(!box)return;
   csEditingId=id;
-  const t=id?csTpls.find(x=>x.id===id):{category:'before',sort_order:(csTpls.length+1)*10};
+  const t=id?csTpls.find(x=>x.id===id):{category:'before'};
   if(!t)return;
   box.innerHTML=`<div class="card" style="border-color:var(--pri)">
     <div class="sec-title" style="margin-top:0">${id?'✏️ 编辑模板 Edit Template':'➕ 新增模板 Add Template'}</div>
     <div class="form-row">
       <div class="fg"><label>分类 Category</label><select id="csCat">${CS_CATS.map(c=>`<option value="${c.v}"${c.v===t.category?' selected':''}>${c.zh} ${c.en}</option>`).join('')}</select></div>
-      <div class="fg"><label>排序（小的在前）Order (smaller first)</label><input type="number" id="csSort" value="${t.sort_order??0}"></div>
     </div>
     <div class="form-row">
       <div class="fg"><label>Customer's question (English) 客户的问题（英文）*</label><input type="text" id="csQen" value="${esc(t.question_en||'')}"></div>
@@ -1384,7 +1383,10 @@ function csOpenEditor(id){
 function csCloseEditor(){csEditingId=null;const b=document.getElementById('csEditor');if(b)b.innerHTML='';}
 async function csSave(){
   const v=id=>document.getElementById(id).value.trim();
-  const d={category:v('csCat'),sort_order:parseInt(v('csSort'))||0,question_zh:v('csQzh'),question_en:v('csQen'),tip_zh:v('csTzh')||null,tip_en:v('csTen')||null,reply:document.getElementById('csReply').value.trim(),updated_by:U.id,updated_at:new Date().toISOString()};
+  // 新模板（或换了分类的模板）自动排到该分类最后
+  const cat=v('csCat'),old=csEditingId?csTpls.find(x=>x.id===csEditingId):null;
+  const sortOrder=(old&&old.category===cat)?old.sort_order:Math.max(0,...csTpls.filter(x=>x.category===cat).map(x=>x.sort_order||0))+10;
+  const d={category:cat,sort_order:sortOrder,question_zh:v('csQzh'),question_en:v('csQen'),tip_zh:v('csTzh')||null,tip_en:v('csTen')||null,reply:document.getElementById('csReply').value.trim(),updated_by:U.id,updated_at:new Date().toISOString()};
   if(!d.question_en||!d.reply){toast('Please fill in the English question and the reply 请填写英文问题和标准回复');return}
   try{
     let r;
