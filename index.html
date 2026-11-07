@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-07-v55-cs-templates-simplify -->
+<!-- BUILD-VERSION: 2026-11-07-v56-remove-issues -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -63,7 +63,7 @@ padding:6px 14px;border-radius:6px;font-size:.75rem;cursor:pointer;width:100%}
 .stat-card{background:var(--card);border-radius:var(--radius);padding:18px 16px;box-shadow:var(--shadow);border:1px solid var(--border)}
 .stat-val{font-size:1.6rem;font-weight:700}
 .stat-label{font-size:.72rem;color:var(--text2);margin-top:4px}
-.quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.quick-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px}
 .action-btn{background:var(--card);border:2px solid var(--border);border-radius:var(--radius);padding:24px 16px;
 text-align:center;cursor:pointer;transition:all .15s}
 .action-btn:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:0 4px 12px rgba(14,165,233,.15)}
@@ -78,12 +78,6 @@ text-align:center;cursor:pointer;transition:all .15s}
 .score-table td{padding:10px 12px;border-bottom:1px solid #f1f5f9}
 .score-table tr:hover td{background:#fafbfc}
 .sv-good{color:var(--ok);font-weight:700}.sv-mid{color:var(--warn);font-weight:700}.sv-bad{color:var(--bad);font-weight:700}
-.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.68rem;font-weight:600}
-.tag-wrong{background:#fce7f3;color:#be185d}.tag-damaged{background:#fee2e2;color:#b91c1c}
-.tag-missing{background:#fff7ed;color:#c2410c}.tag-defective{background:#fef3c7;color:#92400e}
-.tag-other{background:#f1f5f9;color:#475569}
-.tag-pending{background:#fef3c7;color:#92400e}.tag-resolved{background:#ecfdf5;color:#065f46}
-.tag-refunded{background:#eff6ff;color:#1e40af}.tag-replaced{background:#f0fdf4;color:#166534}
 .sop-item{border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;background:#fff}
 .sop-head{padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:.88rem;transition:background .1s}
 .sop-head:hover{background:#fafbfc}
@@ -275,25 +269,9 @@ async function uploadImage(file,folder){
   return SB_URL+'/storage/v1/object/public/tks-uploads/'+path;
 }
 
-const ISSUE_TYPES=[
-  {v:'wrong_item',zh:'发错货',en:'Wrong Item'},
-  {v:'damaged',zh:'破损',en:'Damaged'},
-  {v:'missing_item',zh:'缺件',en:'Missing Item'},
-  {v:'defective',zh:'瑕疵品',en:'Defective'},
-  {v:'other',zh:'其他',en:'Other'}
-];
-const RESULTS=[
-  {v:'pending',zh:'处理中',en:'Pending'},
-  {v:'resolved',zh:'已解决',en:'Resolved'},
-  {v:'refunded',zh:'已退款',en:'Refunded'},
-  {v:'replaced',zh:'已补发',en:'Replaced'}
-];
-
 function fmtDate(dt){const y=dt.getFullYear(),m=String(dt.getMonth()+1).padStart(2,'0'),d=String(dt.getDate()).padStart(2,'0');return y+'-'+m+'-'+d;}
 const today=()=>fmtDate(new Date());
 const sColor=v=>v>=4?'sv-good':v>=3?'sv-mid':'sv-bad';
-const issueTag=t=>{const cls={wrong_item:'wrong',damaged:'damaged',missing_item:'missing',defective:'defective',other:'other'};const i=ISSUE_TYPES.find(x=>x.v===t);return '<span class="tag tag-'+(cls[t]||'other')+'">'+(i?i.zh+' '+i.en:t)+'</span>'};
-const resultTag=r=>{const i=RESULTS.find(x=>x.v===r);return '<span class="tag tag-'+r+'">'+(i?i.zh+' '+i.en:r)+'</span>'};
 const storeOpts=(sel='')=>'<option value="">-- 选择店铺 Select Store --</option>'+stores.map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.store_name+'</option>').join('');
 const myStoreOpts=(sel='')=>'<option value="">-- 选择店铺 Select Store --</option>'+myStores().map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.store_name+'</option>').join('');
 const staffOpts=(sel='')=>'<option value="">-- 未指派 Unassigned --</option>'+staffList.map(s=>'<option value="'+s.id+'"'+(s.id===sel?' selected':'')+'>'+s.display_name+'</option>').join('');
@@ -401,7 +379,6 @@ function buildNav(){
       {id:'chat',icon:'💬',label:'聊天 Chat'},
       {id:'todos',icon:'📋',label:'待办 Todos'},
       {id:'score',icon:'📊',label:'分数与奖励 Scores & Rewards'},
-      {id:'issues',icon:'⚠️',label:'问题 Issues'},
       {id:'sop',icon:'📝',label:'客服模板 CS Templates'},
     ];
     if(canPw)tabs.push({id:'expenses',icon:'💰',label:'开支登记 Expenses'});
@@ -425,7 +402,7 @@ function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
-  const render={home:rHome,chat:rChat,todos:rTodos,score:rScoreHub,issues:rIssues,sop:rSOP,stores:rStores,users:rUsers,expenses:rExpenses};
+  const render={home:rHome,chat:rChat,todos:rTodos,score:rScoreHub,sop:rSOP,stores:rStores,users:rUsers,expenses:rExpenses};
   if(render[id])render[id](m);
 }
 
@@ -466,7 +443,6 @@ async function rHome(el){
   h+=`<div class="quick-actions">
     <div class="action-btn" onclick="go('todos')"><div class="ai">📋</div><div class="az">待办事项</div><div class="ae">Todo List</div></div>
     <div class="action-btn" onclick="go('score')"><div class="ai">📊</div><div class="az">记录分数</div><div class="ae">Record Scores</div></div>
-    <div class="action-btn" onclick="go('issues')"><div class="ai">⚠️</div><div class="az">登记问题</div><div class="ae">Log Issues</div></div>
   </div>`;
   if(myTodos.length>0){
     h+='<div class="sec-title">📋 我的待办 My Pending Todos</div>';
@@ -1241,55 +1217,6 @@ async function rDashboard(el){
 }
 function shiftDashWeek(n){dashWeekStart=addDays(dashWeekStart,n);rDashboard(document.getElementById('mainBody'));}
 
-/* ---- ISSUES ---- */
-async function rIssues(el){
-  const typeOpts=ISSUE_TYPES.map(t=>'<option value="'+t.v+'">'+t.zh+' '+t.en+'</option>').join('');
-  const resOpts=RESULTS.map(r=>'<option value="'+r.v+'">'+r.zh+' '+r.en+'</option>').join('');
-  let h=`<div class="main-header"><h1>⚠️ 问题日志 Issue Log</h1><p>记录售后问题 · Log after-sales issues</p></div>
-    <div class="card"><h3>➕ 登记新问题 Log New Issue</h3>
-      <div class="form-row" style="margin-top:14px">
-        <div class="fg"><label>店铺 Store *</label><select id="isStore">${storeOpts()}</select></div>
-        <div class="fg"><label>日期 Date</label><input type="date" id="isDate" value="${today()}"></div>
-      </div>
-      <div class="form-row">
-        <div class="fg"><label>订单号 Order ID</label><input type="text" id="isOrder"></div>
-        <div class="fg"><label>问题类型 Type *</label><select id="isType">${typeOpts}</select></div>
-      </div>
-      <div class="fg"><label>问题描述 Description</label><textarea id="isDesc"></textarea></div>
-      <div class="form-row">
-        <div class="fg"><label>已采取措施 Action Taken</label><textarea id="isAction"></textarea></div>
-        <div class="fg"><label>处理结果 Result</label><select id="isResult">${resOpts}</select>
-          <div style="margin-top:10px"><label style="font-size:.82rem;cursor:pointer"><input type="checkbox" id="isNeg"> 导致差评 Caused negative review</label></div>
-          <div style="margin-top:6px"><label style="font-size:.82rem;cursor:pointer"><input type="checkbox" id="isRef"> 导致退款 Caused refund</label></div>
-        </div>
-      </div>
-      <button class="btn btn-pri" onclick="saveIssue()" style="margin-top:12px;max-width:300px">💾 保存 Save</button>
-    </div><div id="issueList"></div>`;
-  el.innerHTML=h;loadIssues();
-}
-async function saveIssue(){
-  const sid=document.getElementById('isStore').value;if(!sid){toast('请选择店铺 Please select a store');return}
-  const d={store_id:sid,issue_date:document.getElementById('isDate').value||today(),order_id:document.getElementById('isOrder').value.trim(),
-    issue_type:document.getElementById('isType').value,description:document.getElementById('isDesc').value.trim(),
-    action_taken:document.getElementById('isAction').value.trim(),result:document.getElementById('isResult').value,
-    caused_negative_review:document.getElementById('isNeg').checked,caused_refund:document.getElementById('isRef').checked,recorded_by:U.id};
-  try{const r=await sb.post('tks_issues',d);
-    if(Array.isArray(r)&&r.length>0){toast('✅ 问题已记录 Issue logged!');['isOrder','isDesc','isAction'].forEach(i=>document.getElementById(i).value='');
-      document.getElementById('isNeg').checked=false;document.getElementById('isRef').checked=false;loadIssues();}
-    else toast('❌ 保存失败 Save failed');}
-  catch(e){toast('❌ 网络错误 Network error')}
-}
-async function loadIssues(){
-  const iss=await sb.get('tks_issues','order=created_at.desc&limit=30');const c=document.getElementById('issueList');
-  if(!Array.isArray(iss)||!iss.length){c.innerHTML='<div class="card" style="text-align:center;color:var(--text3)">暂无记录 No records</div>';return}
-  let h='<div class="sec-title">问题记录 (最近30条) Recent Issues (last 30)</div><div class="card"><table class="score-table"><thead><tr><th>日期 Date</th><th>店铺 Store</th><th>类型 Type</th><th>订单号 Order ID</th><th>结果 Result</th><th>差评 Neg. Review</th><th>退款 Refund</th></tr></thead><tbody>';
-  for(const i of iss){const st=stores.find(s=>s.id===i.store_id);
-    h+=`<tr><td>${i.issue_date}</td><td>${esc(st?.store_name||'—')}</td><td>${issueTag(i.issue_type)}</td>
-      <td style="font-size:.75rem">${esc(i.order_id)||'—'}</td><td>${resultTag(i.result)}</td>
-      <td>${i.caused_negative_review?'⭐':'—'}</td><td>${i.caused_refund?'💰':'—'}</td></tr>`}
-  h+='</tbody></table></div>';c.innerHTML=h;
-}
-
 /* ---- CS TEMPLATES (客服模板，存在数据库 tks_cs_templates，admin/S/秘书可编辑，所有人可看可复制) ---- */
 const CS_CATS=[
   {v:'before',zh:'A. 下单后 / 发货前',en:'Before Shipping'},
@@ -1412,26 +1339,22 @@ function sopProcessHtml(){
       {zh:'24小时内通过Messages联系客户，不要等！',en:'Contact customer via Messages within 24hrs. Do NOT wait!'},
       {zh:'先道歉，再提供方案：退款/补发/折扣，让客户选择',en:'Apologize first, offer options: refund/replacement/discount'},
       {zh:'问题解决后，感谢客户耐心；⚠️ 绝对不要请客户修改或删除评价（平台违规）',en:'After resolving, thank the customer; ⚠️ NEVER ask them to change or delete the review (platform violation)'},
-      {zh:'记录到问题日志，勾选"导致差评"',en:'Log in Issue Log, check "Caused negative review"'},
     ],tpl:'Hi! We\'re really sorry about the issue. Would you prefer:\n1) Full refund\n2) Free replacement\n3) Discount on next order\n\nPlease let us know! 🙏'},
     {zh:'🔄 退货退款处理',en:'Return & Refund Handling',impact:'Seller-Fault R&R Rate 45%',steps:[
       {zh:'在Seller Center→After-sales查看申请，判断原因',en:'Check request in After-sales, determine reason'},
       {zh:'卖家责任→立即批准退款，道歉',en:'Seller fault → approve refund immediately, apologize'},
       {zh:'买家责任→解释政策，若坚持建议批准以保护评分',en:'Buyer fault → explain policy, if insistent approve to protect rating'},
-      {zh:'记录到问题日志',en:'Log in Issue Log'},
     ],tpl:'We\'re sorry for the inconvenience. Your refund has been approved and will be processed in 3-5 business days.'},
     {zh:'📦 发错货处理',en:'Wrong Item Shipped',impact:'R&R Rate + Negative Reviews',steps:[
       {zh:'立即道歉，请客户拍照',en:'Apologize immediately, ask for photos'},
       {zh:'确认后安排正确商品发货',en:'After confirmation, ship correct item immediately'},
       {zh:'低价值商品(<200比索)让客户保留',en:'Low-value items (<₱200) let customer keep wrong item'},
       {zh:'⚠️ 通知仓库主管检查拣货流程',en:'⚠️ Notify warehouse supervisor to check picking process'},
-      {zh:'记录到问题日志',en:'Log in Issue Log as Wrong Item'},
     ],tpl:'We sincerely apologize — wrong item was sent! Shipping the correct one now. Please keep the wrong item as our apology. 🙏'},
     {zh:'💔 破损处理',en:'Damaged Product',impact:'R&R Rate + Negative Reviews',steps:[
       {zh:'道歉，请客户发破损照片',en:'Apologize, ask for damage photos'},
       {zh:'提供两个选择：全额退款 或 免费补发',en:'Offer: full refund OR free replacement'},
       {zh:'⚠️ 照片转发仓库主管，检查包装流程',en:'⚠️ Forward photos to warehouse, review packaging process'},
-      {zh:'记录到问题日志',en:'Log in Issue Log as Damaged'},
     ],tpl:'So sorry your order arrived damaged!\n\nWould you prefer:\n1) Full refund\n2) Free replacement\n\nWe\'ll improve our packaging too. 🙏'},
     {zh:'❌ 缺件处理',en:'Missing Item',impact:'R&R Rate + Negative Reviews',steps:[
       {zh:'道歉，确认缺少哪个商品',en:'Apologize, confirm which item is missing'},
