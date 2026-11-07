@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-07-v56-remove-issues -->
+<!-- BUILD-VERSION: 2026-11-07-v57-home-redesign -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -91,6 +91,18 @@ text-align:center;cursor:pointer;transition:all .15s}
 .sop-step .s-zh{font-weight:500}
 .sop-step .s-en{color:var(--text2)}
 .sop-tpl{background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;margin:14px 0;border-radius:0 8px 8px 0;font-size:.8rem;color:var(--text2);white-space:pre-wrap}
+.hm-label{font-size:.75rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}.hm-sub{font-size:.78rem;color:var(--text3);font-weight:400}
+.hm-notice{display:flex;gap:12px;background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fde68a}.hm-notice-text{font-size:1.05rem;font-weight:600;color:#78350f;line-height:1.5}
+.hm-done{background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#6ee7b7;color:#065f46;font-size:1.05rem;text-align:center}
+.hm-hero{background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-color:#bae6fd}.hm-big{font-size:2rem;font-weight:800;color:var(--pri)}.hm-big span{font-size:.85rem;font-weight:500;color:var(--text2)}
+.hm-bar{height:10px;background:#fff;border-radius:6px;overflow:hidden;margin-top:8px}.hm-bar div{height:100%;background:linear-gradient(90deg,#38bdf8,#10b981);border-radius:6px;transition:width .6s}
+.hm-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:14px}.hm-chip{background:#fff;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:3px;font-size:.8rem;border:1px solid var(--border)}.hm-chip.ok{border-left:4px solid var(--ok)}.hm-chip.lost{border-left:4px solid var(--bad);opacity:.85}
+.hm-fire{color:#ea580c;font-weight:600}.hm-lost{color:var(--bad);font-size:.75rem}
+.hm-news-item{padding:6px 0;font-size:.88rem;border-bottom:1px dashed var(--border)}.hm-news-item:last-child{border-bottom:none}
+.hm-winners{background:linear-gradient(135deg,#fdf4ff,#fae8ff);border-color:#f0abfc}.hm-winners-mon{box-shadow:0 0 0 3px #f0abfc}.hm-win{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:.95rem}.hm-money{color:#a21caf;font-size:1.1rem}
+.hm-action{display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;border-bottom:1px solid var(--border);font-size:.88rem}.hm-action:last-child{border-bottom:none}.hm-action:hover{background:var(--pri-l)}.hm-action-ic{font-size:1.2rem}
+.hm-confetti{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}.hm-confetti i{position:absolute;top:-12px;width:8px;height:14px;border-radius:2px;animation:hmFall linear forwards}
+@keyframes hmFall{to{top:105vh;transform:rotate(720deg)}}
 .cs-card{padding:16px 20px}.cs-q{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;font-size:.88rem}.cs-actions{display:flex;gap:6px;flex-shrink:0}.cs-actions .btn{width:auto}.cs-en{color:var(--text2);font-size:.8rem;font-weight:400}.cs-tip{margin-top:8px;font-size:.8rem;color:#92400e;background:var(--warn-bg);padding:6px 10px;border-radius:6px}.cs-reply{margin-top:10px;background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.84rem;white-space:pre-wrap;line-height:1.6}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
@@ -313,7 +325,7 @@ async function initApp(){
   document.getElementById('app').style.display='block';
   document.getElementById('sfName').textContent=U.display_name;
   document.getElementById('sfRole').textContent=U.role==='admin'?'管理员 Admin':(U.role==='S'?'总负责人 S':(U.role==='secretary'?'秘书 Secretary':'员工 Staff'));
-  await loadData();buildNav();go(U.role==='staff'?'chat':'home');
+  await loadData();buildNav();go('home');
   checkTodoReminder();
   todoReminderTimer=setInterval(checkTodoReminder,3*60*60*1000);
   requestNotifPermission();
@@ -368,8 +380,10 @@ function buildNav(){
   if(isPlainStaff){
     // 普通员工：白名单，只有这几个
     tabs=[
+      {id:'home',icon:'🏠',label:'首页 Home'},
       {id:'chat',icon:'💬',label:'聊天 Chat'},
       {id:'todos',icon:'📋',label:'待办 Todos'},
+      {id:'score',icon:'📊',label:'分数与奖励 Scores & Rewards'},
       {id:'sop',icon:'📝',label:'客服模板 CS Templates'},
       {id:'stores',icon:'🏪',label:'店铺 Stores'},
     ];
@@ -407,24 +421,162 @@ function go(id){
 }
 
 /* ---- HOME ---- */
+/* ---- HOME 首页：上半部分让人开心（奖励进度/连续天数/获奖榜/好消息/老板寄语），下半部分是今天要处理的事 ---- */
+function hmGreeting(){
+  const h=new Date().getHours();
+  if(h<12)return {tl:'Magandang umaga',zh:'早上好',ic:'☀️'};
+  if(h<18)return {tl:'Magandang hapon',zh:'下午好',ic:'🌤️'};
+  return {tl:'Magandang gabi',zh:'晚上好',ic:'🌙'};
+}
+function hmStreak(byStoreDate,storeId,t){
+  // 从今天（今天还没登记就从昨天）往回数连续登记的天数，最多算 60 天
+  let d=byStoreDate[storeId+'_'+t]?t:addDays(t,-1),n=0;
+  while(n<60){const sc=byStoreDate[storeId+'_'+d];if(!(sc&&sc.overall_score!=null))break;n++;d=addDays(d,-1);}
+  return n;
+}
+function hmConfetti(){
+  const colors=['#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#ec4899'];
+  const box=document.createElement('div');box.className='hm-confetti';
+  for(let i=0;i<70;i++){const p=document.createElement('i');
+    p.style.left=Math.random()*100+'vw';p.style.background=colors[i%colors.length];
+    p.style.animationDelay=(Math.random()*0.6)+'s';p.style.animationDuration=(2+Math.random()*1.5)+'s';
+    p.style.transform='rotate('+Math.random()*360+'deg)';box.appendChild(p);}
+  document.body.appendChild(box);setTimeout(()=>box.remove(),4500);
+}
 async function rHome(el){
-  const ms=myStores();
-  const scores=await sb.get('tks_scores','order=record_date.desc&limit=200');
-  const latest={},prev={};if(Array.isArray(scores))scores.forEach(s=>{if(!latest[s.store_id])latest[s.store_id]=s;else if(!prev[s.store_id])prev[s.store_id]=s});
-  const allTodos=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
-  const myTodos=Array.isArray(allTodos)?allTodos.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop()))):[];
+  const t=today(),top=isTop(),ms=myStores();
+  const weekStart=mondayOf(t),thisWeek=weekDatesOf(weekStart),lastWeek=weekDatesOf(addDays(weekStart,-7));
+  const from=addDays(t,-60);
+  const [scoresR,todosR,noticeR,expR]=await Promise.all([
+    sb.get('tks_scores','select=store_id,record_date,overall_score,audit_flagged_at,audit_image_url,audit_resolved&record_date=gte.'+from).catch(()=>[]),
+    sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc').catch(()=>[]),
+    sb.get('tks_home_notice','id=eq.1').catch(()=>[]),
+    top?sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:addDays(t,-90),p_date_to:null,p_category_id:null,p_keyword:null}).catch(()=>[]):Promise.resolve([])
+  ]);
+  await updateChatBadge().catch(()=>{});
+  const scores=Array.isArray(scoresR)?scoresR:[];
+  const byStoreDate={};scores.forEach(s=>{byStoreDate[s.store_id+'_'+s.record_date]=s;});
+  const allTodos=Array.isArray(todosR)?todosR:[];
+  const notice=Array.isArray(noticeR)&&noticeR[0]?noticeR[0]:null;
+  const hasRec=(sid,d)=>{const sc=byStoreDate[sid+'_'+d];return !!(sc&&sc.overall_score!=null);};
 
-  let h=`<div class="main-header"><h1>👋 ${U.display_name}</h1><p>${new Date().toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>`;
-  if(isTop()){
-    const overdue=(Array.isArray(scores)?scores:[]).filter(s=>s.audit_flagged_at&&!s.audit_image_url&&!s.audit_resolved&&(Date.now()-new Date(s.audit_flagged_at).getTime())>2*60*60*1000);
+  // 每家店本周状态
+  const storeInfo=s=>{
+    const st=storeWeekStat(byStoreDate,s.id,thisWeek);
+    const missedPast=st.missing.filter(d=>d<t);
+    const onTrack=!missedPast.length&&(st.avg==null||st.avg>=REWARD_THRESHOLD);
+    return {store:s,st,missedPast,onTrack,today:hasRec(s.id,t),streak:hmStreak(byStoreDate,s.id,t)};
+  };
+  const infoAll=stores.map(storeInfo);
+  const infoMine=top?infoAll:infoAll.filter(i=>ms.some(s=>s.id===i.store.id));
+  const daysLeft=thisWeek.filter(d=>d>t).length;
+
+  const g=hmGreeting();
+  let h=`<div class="main-header"><h1>${g.ic} ${g.tl}, ${esc(U.display_name)}!</h1><p>${g.zh} · ${new Date().toLocaleDateString('en',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p></div>`;
+
+  // ① 老板寄语
+  if(notice&&notice.message||top){
+    h+=`<div class="card hm-notice"><div style="flex:1"><div class="hm-label">📌 老板寄语 Message from the Boss</div>
+      <div id="hmNoticeText" class="hm-notice-text">${notice&&notice.message?esc(notice.message):'<span style="color:var(--text3)">（还没写，点右边 ✏️ 写一句给大家 Not written yet）</span>'}</div>
+      ${notice&&notice.updated_at?`<div class="hm-sub">— ${esc(staffName(notice.updated_by)||'')} · ${new Date(notice.updated_at).toLocaleDateString()}</div>`:''}</div>
+      ${top?`<button class="btn btn-ghost btn-sm" style="width:auto;align-self:flex-start" onclick="hmEditNotice()">✏️</button>`:''}</div>`;
+  }
+
+  // ② 今天要处理的事（先算出来，用于判断“全部搞定”）
+  const actions=[];
+  if(top){
+    const review=allTodos.filter(x=>x.status==='submitted');
+    if(review.length)actions.push({ic:'📝',zh:`${review.length} 条待办等你审核`,en:`${review.length} todo(s) waiting for your review`,go:"go('todos')"});
+    const pend=Array.isArray(expR)?expR.filter(r=>!r.approved):[];
+    if(pend.length){const sum=pend.reduce((a,r)=>a+(Number(r.expense)||0),0);
+      actions.push({ic:'💰',zh:`${pend.length} 笔开支待审核（支出 ₱${sum.toLocaleString()}）`,en:`${pend.length} expense(s) pending approval`,go:"expFilter.status='pending';go('expenses')"});}
+    const unassigned=stores.filter(s=>!s.assigned_to);
+    if(unassigned.length)actions.push({ic:'🏪',zh:`${unassigned.length} 家店还没指派负责人：${unassigned.map(s=>esc(s.store_name)).join('、')}`,en:`${unassigned.length} store(s) have no owner`,go:"go('stores')"});
+  }else{
+    const mine=allTodos.filter(x=>x.assigned_to===U.id||x.claimed_by===U.id||(!x.assigned_to&&x.status==='open'));
+    const rejected=mine.filter(x=>x.status==='rejected').length;
+    if(mine.length)actions.push({ic:'📋',zh:`${mine.length} 条待办要处理${rejected?`（${rejected} 条被退回，要重做）`:''}`,en:`${mine.length} todo(s) to do${rejected?` (${rejected} sent back)`:''}`,go:"go('todos')"});
+    const notYet=infoMine.filter(i=>!i.today);
+    if(notYet.length)actions.push({ic:'📊',zh:`今天还没登记分数：${notYet.map(i=>esc(i.store.store_name)).join('、')} · 下班前记得登记`,en:`Not recorded today: ${notYet.map(i=>esc(i.store.store_name)).join(', ')} · record before you go home`,go:"scoreHubTab='entry';go('score')"});
+    const myIds=ms.map(s=>s.id);
+    const audit=scores.filter(s=>myIds.includes(s.store_id)&&s.audit_flagged_at&&!s.audit_image_url&&!s.audit_resolved);
+    if(audit.length)actions.push({ic:'📸',zh:`${audit.length} 家店被抽中核查，请上传后台截图`,en:`${audit.length} store(s) picked for check — upload a screenshot`,go:"scoreHubTab='entry';go('score')"});
+  }
+  if(chatUnreadTotal>0)actions.push({ic:'💬',zh:`${chatUnreadTotal} 条未读消息`,en:`${chatUnreadTotal} unread message(s)`,go:"go('chat')"});
+  const allDone=!actions.length&&(!infoMine.length||infoMine.every(i=>i.today));
+  if(allDone){
+    h+=`<div class="card hm-done">🎉 <b>Lahat tapos na! 今天全部搞定！</b><div class="hm-sub" style="color:#065f46">All done for today. Salamat po! 谢谢你的努力</div></div>`;
+  }
+
+  // ③ 奖励进度
+  if(!top&&infoMine.length){
+    const onTrack=infoMine.filter(i=>i.onTrack);
+    const potential=onTrack.length*REWARD_AMOUNT;
+    const pct=Math.round(thisWeek.filter(d=>d<=t).length/7*100);
+    h+=`<div class="card hm-hero"><div class="hm-label">💰 本周奖励进度 This Week's Reward</div>
+      <div class="hm-big">₱${potential}<span> ${daysLeft?`再坚持 ${daysLeft} 天就到手 · ${daysLeft} more day(s) to go`:'今天登记完就到手！Record today and it\'s yours!'}</span></div>
+      <div class="hm-bar"><div style="width:${pct}%"></div></div>
+      <div class="hm-chips">${infoMine.map(i=>`<div class="hm-chip ${i.onTrack?'ok':'lost'}"><b>${esc(i.store.store_name)}</b>
+        <span>${i.onTrack?'✅':'❌'} ${i.st.days}/${thisWeek.filter(d=>d<=t).length} 天 days · 均分 avg ${i.st.avg!=null?i.st.avg.toFixed(2):'-'}</span>
+        ${i.streak>0?`<span class="hm-fire">🔥 连续 ${i.streak} 天 · ${i.streak}-day streak</span>`:''}
+        ${!i.today&&!i.missedPast.length?`<span style="color:#c2410c;font-size:.75rem">⏳ 今天还没登记 Not recorded today</span>`:''}
+        ${!i.onTrack&&i.missedPast.length?`<span class="hm-lost">本周漏登，这家店本周没奖励 · Missed a day, no reward this week</span>`:''}
+        ${i.onTrack&&i.st.avg!=null&&i.st.avg<REWARD_THRESHOLD+0.1?`<span class="hm-lost" style="color:#c2410c">接近 ${REWARD_THRESHOLD}，加油 · Close to ${REWARD_THRESHOLD}, keep going</span>`:''}
+      </div>`).join('')}</div></div>`;
+  }else if(top&&infoAll.length){
+    const onTrack=infoAll.filter(i=>i.onTrack&&i.store.assigned_to);
+    const assigned=infoAll.filter(i=>i.store.assigned_to).length;
+    const todayDone=infoAll.filter(i=>i.today).length;
+    h+=`<div class="card hm-hero"><div class="hm-label">🏆 全队本周 Team This Week</div>
+      <div class="hm-big">${onTrack.length} / ${assigned}<span> 家店在达标线上 · stores on track · 预计发放 ₱${onTrack.length*REWARD_AMOUNT}</span></div>
+      <div class="hm-bar"><div style="width:${assigned?Math.round(onTrack.length/assigned*100):0}%"></div></div>
+      <div class="hm-sub" style="margin-top:8px">📊 今天已登记 Recorded today: <b>${todayDone} / ${infoAll.length}</b>${todayDone<infoAll.length?` · 还没登记 Not yet: ${infoAll.filter(i=>!i.today).map(i=>`${esc(i.store.store_name)}${i.store.assigned_to?'（'+esc(staffName(i.store.assigned_to))+'）':''}`).join('、')}`:' ✅'}</div>
+      <div class="hm-sub" style="margin-top:6px;cursor:pointer;color:var(--pri)" onclick="scoreHubTab='dashboard';go('score')">查看周度看板 Open dashboard →</div></div>`;
+  }
+
+  // ④ 好消息
+  const news=[];
+  for(const i of infoAll){
+    const sc=byStoreDate[i.store.id+'_'+t];
+    if(sc&&sc.overall_score!=null){
+      const prior=[];for(let k=1;k<=30;k++){const p=byStoreDate[i.store.id+'_'+addDays(t,-k)];if(p&&p.overall_score!=null)prior.push(Number(p.overall_score));}
+      if(prior.length>=7&&Number(sc.overall_score)>Math.max(...prior))news.push(`🎉 <b>${esc(i.store.store_name)}</b> 今天分数 ${Number(sc.overall_score).toFixed(1)}，创近 30 天新高！New 30-day high!`);
+    }
+    if([7,14,21,30,60].includes(i.streak)&&i.today)news.push(`🔥 <b>${esc(i.store.store_name)}</b> 已连续登记 ${i.streak} 天！${i.streak}-day streak!`);
+  }
+  const teamAssigned=infoAll.filter(i=>i.store.assigned_to);
+  if(teamAssigned.length&&teamAssigned.every(i=>i.onTrack)&&thisWeek.some(d=>d<t))news.push(`💪 全队所有店铺本周都在达标线上！Every store is on track this week!`);
+  if(news.length)h+=`<div class="card hm-news"><div class="hm-label">📈 好消息 Good News</div>${news.map(n=>`<div class="hm-news-item">${n}</div>`).join('')}</div>`;
+
+  // ⑤ 上周获奖榜（只表扬拿到奖的人）
+  const winners={};
+  for(const s of stores){if(!s.assigned_to)continue;const st=storeWeekStat(byStoreDate,s.id,lastWeek);
+    if(st.qualified){if(!winners[s.assigned_to])winners[s.assigned_to]={total:0,n:0};winners[s.assigned_to].total+=st.reward;winners[s.assigned_to].n++;}}
+  const wl=Object.entries(winners).sort((a,b)=>b[1].total-a[1].total);
+  if(wl.length){
+    const isMon=new Date().getDay()===1;
+    h+=`<div class="card hm-winners${isMon?' hm-winners-mon':''}"><div class="hm-label">🏆 上周获奖 Last Week's Winners <span class="hm-sub">${lastWeek[0].slice(5)} ~ ${lastWeek[6].slice(5)}</span></div>
+      ${wl.map(([uid,w],idx)=>`<div class="hm-win"><span>${['🥇','🥈','🥉'][idx]||'🎖️'} <b>${esc(staffName(uid))}</b> <span class="hm-sub">${w.n} 家店达标 store(s) qualified</span></span><b class="hm-money">₱${w.total}</b></div>`).join('')}
+      <div class="hm-sub" style="margin-top:6px">Congratulations po! 恭喜！🎉</div></div>`;
+  }
+
+  // ⑥ 今天要处理
+  h+=`<div class="sec-title">✅ 今天要处理 To Do Today</div>`;
+  if(actions.length){
+    h+='<div class="card" style="padding:6px 0">'+actions.map(a=>`<div class="hm-action" onclick="${a.go}"><span class="hm-action-ic">${a.ic}</span><div style="flex:1"><div>${a.zh}</div><div class="hm-sub">${a.en}</div></div><span style="color:var(--text3)">›</span></div>`).join('')+'</div>';
+  }else{
+    h+='<div class="card" style="text-align:center;color:var(--ok)">✅ 没有要处理的事 Nothing to do right now</div>';
+  }
+  // 管理员：截图逾期 + 私下抽查（保留原功能）
+  if(top){
+    const overdue=scores.filter(s=>s.audit_flagged_at&&!s.audit_image_url&&!s.audit_resolved&&(Date.now()-new Date(s.audit_flagged_at).getTime())>2*60*60*1000);
     if(overdue.length){
       h+='<div class="card" style="background:#fef2f2;border:1px solid #fca5a5"><h3 style="color:var(--bad)">🚨 有截图逾期未上传（超过2小时） Screenshots overdue (over 2 hours)</h3>';
       for(const o of overdue){const st=stores.find(x=>x.id===o.store_id);
         h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
           <span><b>${esc(st?.store_name||'-')}</b>（${o.record_date}）· 抽中于 Picked at ${new Date(o.audit_flagged_at).toLocaleString()}</span>
           <button class="btn btn-ghost btn-sm" onclick="resolveAudit('${o.store_id}','${o.record_date}')">✅ 已去后台核实，标记通过 Verified in backend, mark OK</button>
-        </div>`;
-      }
+        </div>`;}
       h+='</div>';
     }
   }
@@ -435,31 +587,26 @@ async function rHome(el){
         picks.map(id=>`<span class="badge" style="margin-right:6px">${esc(stores.find(s=>s.id===id)?.store_name||'-')}</span>`).join('')+'</div>';
     }
   }
-  h+=`<div class="stats-row">
-    <div class="stat-card" style="cursor:pointer" onclick="go('todos')"><div class="stat-val ${myTodos.length>0?'sv-bad':'sv-good'}">${myTodos.length}</div><div class="stat-label">待处理待办 Pending Todos</div></div>
-    <div class="stat-card"><div class="stat-val">${ms.length}</div><div class="stat-label">${isTop()?'全部店铺 All Stores':'我的店铺 My Stores'}</div></div>
-    <div class="stat-card"><div class="stat-val">${stores.filter(s=>!s.assigned_to).length}</div><div class="stat-label">未指派 Unassigned</div></div>
-  </div>`;
-  h+=`<div class="quick-actions">
-    <div class="action-btn" onclick="go('todos')"><div class="ai">📋</div><div class="az">待办事项</div><div class="ae">Todo List</div></div>
-    <div class="action-btn" onclick="go('score')"><div class="ai">📊</div><div class="az">记录分数</div><div class="ae">Record Scores</div></div>
-  </div>`;
-  if(myTodos.length>0){
-    h+='<div class="sec-title">📋 我的待办 My Pending Todos</div>';
-    h+=myTodos.slice(0,3).map(t=>renderTodoCard(t,true)).join('');
-    if(myTodos.length>3)h+=`<div style="text-align:center;padding:8px"><span style="cursor:pointer;color:var(--pri);font-size:.82rem" onclick="go('todos')">查看全部 ${myTodos.length} 条 View all →</span></div>`;
-  }
-  if(Object.keys(latest).length>0){
-    h+='<div class="sec-title">各店铺最新分数 Latest Store Scores</div><div class="card"><table class="score-table"><thead><tr><th>店铺 Store</th><th>总分 Overall</th><th>趋势 Trend</th><th>产品 Product</th><th>物流 Fulfill</th><th>客服 Service</th><th>日期 Date</th></tr></thead><tbody>';
-    for(const s of stores){const sc=latest[s.id];if(!sc)continue;const pv=prev[s.id];
-      h+=`<tr><td><b>${esc(s.store_name)}</b></td><td class="${sColor(sc.overall_score)}"><b>${sc.overall_score??'-'}</b></td>
-        <td>${pv?trend(sc.overall_score,pv.overall_score):'—'}</td>
-        <td class="${sColor(sc.product_satisfaction)}">${sc.product_satisfaction??'-'}${pv?trend(sc.product_satisfaction,pv.product_satisfaction):''}</td>
-        <td class="${sColor(sc.fulfillment)}">${sc.fulfillment??'-'}${pv?trend(sc.fulfillment,pv.fulfillment):''}</td>
-        <td class="${sColor(sc.customer_service)}">${sc.customer_service??'-'}${pv?trend(sc.customer_service,pv.customer_service):''}</td>
-        <td style="color:var(--text3)">${sc.record_date?.slice(5)||'-'}</td></tr>`}
-    h+='</tbody></table></div>';}
   el.innerHTML=h;
+  if(allDone){
+    const key='tks_confetti_'+U.id;let last=null;
+    try{last=localStorage.getItem(key);}catch(e){}
+    if(last!==t){try{localStorage.setItem(key,t);}catch(e){}hmConfetti();}
+  }
+}
+function hmEditNotice(){
+  const box=document.getElementById('hmNoticeText');if(!box)return;
+  const cur=box.querySelector('span')?'':box.textContent;
+  box.innerHTML=`<textarea id="hmNoticeInput" rows="2" style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:.9rem" placeholder="例如 Great job this week team, salamat po!">${esc(cur)}</textarea>
+    <div style="display:flex;gap:8px;margin-top:6px"><button class="btn btn-pri btn-sm" style="width:auto" onclick="hmSaveNotice()">💾 保存 Save</button><button class="btn btn-ghost btn-sm" style="width:auto" onclick="rHome(document.getElementById('mainBody'))">取消 Cancel</button></div>`;
+}
+async function hmSaveNotice(){
+  const msg=document.getElementById('hmNoticeInput').value.trim();
+  try{
+    const r=await sb.upsertOn('tks_home_notice','id',{id:1,message:msg||null,updated_by:U.id,updated_at:new Date().toISOString()});
+    if(!Array.isArray(r))throw new Error(r&&r.message||'');
+    toast('✅ 已保存 Saved');rHome(document.getElementById('mainBody'));
+  }catch(e){toast('❌ 保存失败 Save failed '+(e.message||''))}
 }
 
 /* ---- TODOS ---- */
@@ -999,7 +1146,7 @@ async function rScore(el){
   h+=`<div class="card"><h3>➕ 录入分数 Record Score</h3>
     <div class="form-row" style="margin-top:16px">
       <div class="fg"><label>店铺 Store *</label><select id="scStore" onchange="loadHistory()">${isTop()?storeOpts():myStoreOpts()}</select></div>
-      <div class="fg"><label>日期 Date</label><input type="date" id="scDate" value="${today()}"></div>
+      <div class="fg"><label>日期 Date${isTop()?'':' <span style="font-weight:400;text-transform:none;color:var(--text3)">（只能登记今天，不能补登 Today only, no backfilling）</span>'}</label><input type="date" id="scDate" value="${today()}"${isTop()?'':' disabled'}></div>
     </div>
     <div class="sec-title">主要分数 Main Scores (0-5)</div>
     <div class="form-row-4">
@@ -1022,6 +1169,7 @@ function calcSc(){
 async function saveSc(){
   const sid=document.getElementById('scStore').value;if(!sid){toast('请选择店铺 Please select a store');return}
   const date=document.getElementById('scDate').value||today();
+  if(!isTop()&&date!==today()){toast('只能登记今天的分数，不能补登 You can only record today\'s score');return}
   const newScore=parseFloat(document.getElementById('sO').value)||null;
   // 已有记录且分数变了 → 记一条修改留痕（客服自己看不到，admin/S能看）
   try{
