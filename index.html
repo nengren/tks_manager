@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-07-v57-home-redesign -->
+<!-- BUILD-VERSION: 2026-11-09-v58-home-fix-monday -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -464,8 +464,10 @@ async function rHome(el){
   const storeInfo=s=>{
     const st=storeWeekStat(byStoreDate,s.id,thisWeek);
     const missedPast=st.missing.filter(d=>d<t);
+    // onTrack = 还有资格（没漏登，且均分没低于4.5或还没数据）；qualified = 已有登记且均分≥4.5（真正达标）
     const onTrack=!missedPast.length&&(st.avg==null||st.avg>=REWARD_THRESHOLD);
-    return {store:s,st,missedPast,onTrack,today:hasRec(s.id,t),streak:hmStreak(byStoreDate,s.id,t)};
+    const qualified=!missedPast.length&&st.avg!=null&&st.avg>=REWARD_THRESHOLD;
+    return {store:s,st,missedPast,onTrack,qualified,today:hasRec(s.id,t),streak:hmStreak(byStoreDate,s.id,t)};
   };
   const infoAll=stores.map(storeInfo);
   const infoMine=top?infoAll:infoAll.filter(i=>ms.some(s=>s.id===i.store.id));
@@ -513,23 +515,28 @@ async function rHome(el){
     const onTrack=infoMine.filter(i=>i.onTrack);
     const potential=onTrack.length*REWARD_AMOUNT;
     const pct=Math.round(thisWeek.filter(d=>d<=t).length/7*100);
-    h+=`<div class="card hm-hero"><div class="hm-label">💰 本周奖励进度 This Week's Reward</div>
-      <div class="hm-big">₱${potential}<span> ${daysLeft?`再坚持 ${daysLeft} 天就到手 · ${daysLeft} more day(s) to go`:'今天登记完就到手！Record today and it\'s yours!'}</span></div>
+    h+=`<div class="card hm-hero"><div class="hm-label">💰 本周你还有机会拿到 You Can Still Earn This Week</div>
+      <div class="hm-big">₱${potential}<span> ${daysLeft?`每天登记、均分 ≥ ${REWARD_THRESHOLD}，再坚持 ${daysLeft} 天 · record daily, ${daysLeft} more day(s)`:'今天登记完就到手！Record today and it\'s yours!'}</span></div>
       <div class="hm-bar"><div style="width:${pct}%"></div></div>
-      <div class="hm-chips">${infoMine.map(i=>`<div class="hm-chip ${i.onTrack?'ok':'lost'}"><b>${esc(i.store.store_name)}</b>
-        <span>${i.onTrack?'✅':'❌'} ${i.st.days}/${thisWeek.filter(d=>d<=t).length} 天 days · 均分 avg ${i.st.avg!=null?i.st.avg.toFixed(2):'-'}</span>
+      <div class="hm-chips">${infoMine.map(i=>`<div class="hm-chip ${i.qualified?'ok':i.onTrack?'':'lost'}"><b>${esc(i.store.store_name)}</b>
+        <span>${i.qualified?'✅':i.onTrack?'⏳':'❌'} ${i.st.days}/${thisWeek.filter(d=>d<=t).length} 天 days · 均分 avg ${i.st.avg!=null?i.st.avg.toFixed(2):'-'}</span>
         ${i.streak>0?`<span class="hm-fire">🔥 连续 ${i.streak} 天 · ${i.streak}-day streak</span>`:''}
         ${!i.today&&!i.missedPast.length?`<span style="color:#c2410c;font-size:.75rem">⏳ 今天还没登记 Not recorded today</span>`:''}
         ${!i.onTrack&&i.missedPast.length?`<span class="hm-lost">本周漏登，这家店本周没奖励 · Missed a day, no reward this week</span>`:''}
         ${i.onTrack&&i.st.avg!=null&&i.st.avg<REWARD_THRESHOLD+0.1?`<span class="hm-lost" style="color:#c2410c">接近 ${REWARD_THRESHOLD}，加油 · Close to ${REWARD_THRESHOLD}, keep going</span>`:''}
       </div>`).join('')}</div></div>`;
   }else if(top&&infoAll.length){
-    const onTrack=infoAll.filter(i=>i.onTrack&&i.store.assigned_to);
-    const assigned=infoAll.filter(i=>i.store.assigned_to).length;
+    const asg=infoAll.filter(i=>i.store.assigned_to),assigned=asg.length;
+    const qualified=asg.filter(i=>i.qualified).length,lost=asg.filter(i=>i.missedPast.length).length;
+    const below=asg.filter(i=>!i.missedPast.length&&i.st.avg!=null&&i.st.avg<REWARD_THRESHOLD).length;
+    const weekStarted=asg.some(i=>i.st.days>0);
     const todayDone=infoAll.filter(i=>i.today).length;
-    h+=`<div class="card hm-hero"><div class="hm-label">🏆 全队本周 Team This Week</div>
-      <div class="hm-big">${onTrack.length} / ${assigned}<span> 家店在达标线上 · stores on track · 预计发放 ₱${onTrack.length*REWARD_AMOUNT}</span></div>
-      <div class="hm-bar"><div style="width:${assigned?Math.round(onTrack.length/assigned*100):0}%"></div></div>
+    h+=`<div class="card hm-hero"><div class="hm-label">🏆 全队本周 Team This Week</div>`+(weekStarted?`
+      <div class="hm-big">${qualified} / ${assigned}<span> 家店目前达标（已登记且均分 ≥ ${REWARD_THRESHOLD}）· qualified so far · 预计发放 ₱${qualified*REWARD_AMOUNT}</span></div>
+      <div class="hm-bar"><div style="width:${assigned?Math.round(qualified/assigned*100):0}%"></div></div>
+      <div class="hm-sub" style="margin-top:8px">${lost?`❌ 已漏登失去资格 Lost (missed a day): <b>${lost}</b> 家 · `:''}${below?`⚠️ 均分低于 ${REWARD_THRESHOLD} Below: <b>${below}</b> 家 · `:''}数据截至今天，周日结束才最终确定 · Final after Sunday</div>`:`
+      <div class="hm-big">🆕 新的一周<span> New week · ${assigned} 家店都有机会拿奖 · all ${assigned} stores can still win</span></div>
+      <div class="hm-bar"><div style="width:0%"></div></div>`)+`
       <div class="hm-sub" style="margin-top:8px">📊 今天已登记 Recorded today: <b>${todayDone} / ${infoAll.length}</b>${todayDone<infoAll.length?` · 还没登记 Not yet: ${infoAll.filter(i=>!i.today).map(i=>`${esc(i.store.store_name)}${i.store.assigned_to?'（'+esc(staffName(i.store.assigned_to))+'）':''}`).join('、')}`:' ✅'}</div>
       <div class="hm-sub" style="margin-top:6px;cursor:pointer;color:var(--pri)" onclick="scoreHubTab='dashboard';go('score')">查看周度看板 Open dashboard →</div></div>`;
   }
@@ -545,7 +552,7 @@ async function rHome(el){
     if([7,14,21,30,60].includes(i.streak)&&i.today)news.push(`🔥 <b>${esc(i.store.store_name)}</b> 已连续登记 ${i.streak} 天！${i.streak}-day streak!`);
   }
   const teamAssigned=infoAll.filter(i=>i.store.assigned_to);
-  if(teamAssigned.length&&teamAssigned.every(i=>i.onTrack)&&thisWeek.some(d=>d<t))news.push(`💪 全队所有店铺本周都在达标线上！Every store is on track this week!`);
+  if(teamAssigned.length&&teamAssigned.every(i=>i.qualified)&&thisWeek.some(d=>d<t))news.push(`💪 全队所有店铺本周都在达标线上！Every store is on track this week!`);
   if(news.length)h+=`<div class="card hm-news"><div class="hm-label">📈 好消息 Good News</div>${news.map(n=>`<div class="hm-news-item">${n}</div>`).join('')}</div>`;
 
   // ⑤ 上周获奖榜（只表扬拿到奖的人）
