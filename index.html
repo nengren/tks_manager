@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-17-v59-linoleum-prices -->
+<!-- BUILD-VERSION: 2026-11-17-v60-linoleum-layout -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -111,6 +111,15 @@ text-align:center;cursor:pointer;transition:all .15s}
 .lino-cell{cursor:pointer;min-width:62px;font-weight:600}.lino-cell:hover{outline:2px solid var(--pri);outline-offset:-2px}.lino-empty{color:#cbd5e1;font-weight:400}.lino-input{width:70px;padding:4px 6px;border:2px solid var(--pri);border-radius:6px;font-size:.85rem;text-align:center}
 .lt1{background:#dcfce7}.lt2{background:#dbeafe}.lt3{background:#fef3c7}.lt4{background:#fee2e2}.lino-miss{box-shadow:inset 0 0 0 2px var(--bad)}.lino-off td{opacity:.5}
 .lino-legend{display:flex;gap:4px;font-size:.72rem}.lino-legend span{padding:2px 7px;border-radius:5px}.lino-miss-demo{box-shadow:inset 0 0 0 2px var(--bad);background:#fff}
+.lino-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px}.lino-search{flex:1;min-width:200px;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit}
+.lino-seg{display:flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden}.lino-seg button{border:none;background:#fff;padding:8px 14px;cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;color:var(--text2)}.lino-seg button.on{background:var(--pri);color:#fff}
+.lino-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}.lino-pill{position:relative;display:flex;flex-direction:column;align-items:center;min-width:64px;padding:8px 10px 6px;border:1.5px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;font-family:inherit}.lino-pill b{font-size:1rem}.lino-pill span{font-size:.7rem;color:var(--text3)}.lino-pill em{font-style:normal;font-size:.65rem}.lino-pill.on{border-color:var(--pri);background:var(--pri-l);box-shadow:0 0 0 2px var(--pri)}.lino-pill-miss{position:absolute;top:-7px;right:-7px;background:var(--bad);color:#fff;font-style:normal;font-size:.65rem;font-weight:700;border-radius:10px;padding:1px 6px}
+.lino-storehead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.lino-filter{display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap}.lino-filter button{border:1.5px solid var(--border);background:#fff;border-radius:20px;padding:5px 12px;font-size:.8rem;cursor:pointer;font-family:inherit}.lino-filter button.on{border-color:var(--pri);color:var(--pri);font-weight:700}
+.lino-list{display:flex;flex-direction:column;gap:6px;max-width:860px}.lino-row{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 14px}.lino-row.miss{border-color:var(--bad);box-shadow:inset 3px 0 0 var(--bad)}
+.lino-img-big{width:64px!important;height:64px!important}.lino-row-sku{flex:1;display:flex;flex-direction:column;gap:2px}.lino-row-sku b{font-size:.95rem}.lino-misstag{font-size:.72rem;color:var(--bad)}
+.lino-row-price{display:flex;align-items:center;gap:4px;font-weight:700;color:var(--text2)}.lino-pin{width:110px;padding:9px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:1.05rem;font-weight:700;text-align:right;font-family:inherit}.lino-pin:focus{border-color:var(--pri);outline:none;box-shadow:0 0 0 3px var(--pri-l)}
+.lino-del{border:none;background:none;cursor:pointer;font-size:.95rem;opacity:.35;padding:4px}.lino-del:hover{opacity:1}.lino-skucell .lino-del{margin-left:auto}
 .cs-card{padding:16px 20px}.cs-q{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;font-size:.88rem}.cs-actions{display:flex;gap:6px;flex-shrink:0}.cs-actions .btn{width:auto}.cs-en{color:var(--text2);font-size:.8rem;font-weight:400}.cs-tip{margin-top:8px;font-size:.8rem;color:#92400e;background:var(--warn-bg);padding:6px 10px;border-radius:6px}.cs-reply{margin-top:10px;background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.84rem;white-space:pre-wrap;line-height:1.6}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
@@ -1383,7 +1392,7 @@ async function rDashboard(el){
 function shiftDashWeek(n){dashWeekStart=addDays(dashWeekStart,n);rDashboard(document.getElementById('mainBody'));}
 
 /* ---- LINOLEUM 地板皮革：价格表（所有人可看可改）+ 数据导入/设置（只有 admin） ---- */
-let linoTab='prices',linoQ='',linoShowInactive=false,lino={stores:[],skus:[],prices:{},recent:{},loaded:false};
+let linoTab='prices',linoQ='',linoShowInactive=false,linoView='store',linoStore=null,linoFilter='all',lino={stores:[],skus:[],prices:{},recent:{},loaded:false};
 const LINO_CHECK_DAYS=7;
 const linoIsAdmin=()=>U.role==='admin';
 function linoTier(p){if(p==null)return '';if(p<=69.99)return 'lt1';if(p<=79.99)return 'lt2';if(p<=85.99)return 'lt3';return 'lt4';}
@@ -1417,42 +1426,117 @@ async function rLino(el){
 function linoRenderPrices(){
   const box=document.getElementById('linoBody');if(!box)return;
   const stores=lino.stores.filter(s=>s.is_active);
-  const q=linoQ.trim().toLowerCase();
-  const skus=lino.skus.filter(s=>(linoShowInactive||s.is_active)&&(!q||s.sku.toLowerCase().includes(q)));
+  if(!stores.find(s=>s.store===linoStore))linoStore=stores[0]?.store||null;
+  const act=lino.skus.filter(s=>s.is_active);
   const now=Date.now();
-  let missing=0;
-  let h=`<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px">
-    <input type="text" id="linoSearch" placeholder="🔍 搜索 SKU · Search SKU" value="${esc(linoQ)}" oninput="linoQ=this.value;linoRenderPrices();const i=document.getElementById('linoSearch');i.focus();i.setSelectionRange(i.value.length,i.value.length)" style="flex:1;min-width:200px;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit">
+  const isFresh=s=>s.checked_at&&(now-new Date(s.checked_at).getTime())<LINO_CHECK_DAYS*86400000;
+  const missOf=st=>act.filter(k=>lino.prices[linoKey(k.sku,st)]==null&&lino.recent[linoKey(k.sku,st)]>0).length;
+  const filledOf=st=>act.filter(k=>lino.prices[linoKey(k.sku,st)]!=null).length;
+  // 视图切换 + 店铺选择
+  let h=`<div class="card lino-bar">
+    <div class="lino-seg"><button class="${linoView==='store'?'on':''}" onclick="linoView='store';linoRenderPrices()">🏪 按店录入 By store</button><button class="${linoView==='all'?'on':''}" onclick="linoView='all';linoRenderPrices()">📋 总览 Overview</button></div>
+    <input type="text" id="linoSearch" placeholder="🔍 搜索 SKU · Search SKU" value="${esc(linoQ)}" oninput="linoQ=this.value;linoRenderList()" class="lino-search">
     <button class="btn btn-ghost btn-sm" style="width:auto" onclick="linoAddSku()">➕ 新增 SKU Add SKU</button>
-    <label style="font-size:.8rem;display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" ${linoShowInactive?'checked':''} onchange="linoShowInactive=this.checked;linoRenderPrices()"> 显示停用 Show inactive</label>
-    <div class="lino-legend"><span class="lt1">≤69</span><span class="lt2">70–79.99</span><span class="lt3">80–85.99</span><span class="lt4">≥86</span><span class="lino-miss-demo">有销量没填价 Selling, no price</span></div>
-  </div>
-  <div class="card" style="font-size:.8rem;color:var(--text2);padding:10px 16px">✏️ 点格子改价格，回车保存并跳到下一行，留空 = 这家店没上架。每家店核对完点列头的"核对"。<br><span style="color:var(--text3)">Click a cell to edit, Enter saves and moves down, empty = not listed in that store. After checking a store against TikTok, click "Check" on its column.</span></div>
-  <div class="lino-wrap"><table class="lino-table"><thead><tr><th class="lino-sticky">SKU</th>`;
-  for(const s of stores){
-    const ck=s.checked_at?new Date(s.checked_at):null;
-    const fresh=ck&&(now-ck.getTime())<LINO_CHECK_DAYS*86400000;
-    h+=`<th title="${esc(s.store)}"><div class="lino-sh">${esc(s.label)}</div>
-      <div class="lino-ck ${fresh?'ok':'stale'}">${ck?(fresh?'✅ ':'⚠️ ')+(ck.getMonth()+1)+'-'+ck.getDate():'⚠️ 未核对 Not checked'}</div>
-      <button class="lino-ckbtn" onclick="linoCheckStore('${esc(s.store).replace(/'/g,"\\'")}')">✓ 核对 Check</button></th>`;
+  </div>`;
+  if(linoView==='store'){
+    h+='<div class="lino-pills">'+stores.map(s=>{const m=missOf(s.store);return `<button class="lino-pill${s.store===linoStore?' on':''}" onclick="linoStore='${esc(s.store).replace(/'/g,"\\'")}';linoRenderPrices()">
+      <b>${esc(s.label)}</b><span>${filledOf(s.store)}/${act.length}</span>${m?`<i class="lino-pill-miss">${m}</i>`:''}<em class="${isFresh(s)?'ok':'stale'}">${isFresh(s)?'✅':'⚠️'}</em></button>`}).join('')+'</div>';
+    const s=stores.find(x=>x.store===linoStore);
+    if(s){
+      const ck=s.checked_at?new Date(s.checked_at):null;
+      h+=`<div class="card lino-storehead"><div><div style="font-size:1.25rem;font-weight:800">${esc(s.label)} <span style="font-size:.85rem;font-weight:500;color:var(--text3)">${esc(s.store)}</span></div>
+        <div class="hm-sub">已填 Filled <b>${filledOf(s.store)}</b> / ${act.length} · ${missOf(s.store)?`<span style="color:var(--bad)">🔴 有销量没填价 Selling, no price: <b>${missOf(s.store)}</b></span> · `:''}${ck?`最后核对 Last checked ${ck.getMonth()+1}-${ck.getDate()}${isFresh(s)?' ✅':' ⚠️'}`:'⚠️ 还没核对 Not checked yet'}</div></div>
+        <button class="btn btn-pri btn-sm" style="width:auto" onclick="linoCheckStore('${esc(s.store).replace(/'/g,"\\'")}')">✓ 本店已和 TikTok 核对 Checked with TikTok</button></div>
+      <div class="lino-filter">${[['all','全部 All'],['empty','未填 Empty'],['miss','🔴 有销量没填价 Selling, no price']].map(([v,l])=>`<button class="${linoFilter===v?'on':''}" onclick="linoFilter='${v}';linoRenderList()">${l}</button>`).join('')}
+        <span class="hm-sub" style="margin-left:auto">输入价格后按回车跳到下一个；留空 = 没上架 · Type price, Enter = next; empty = not listed</span></div>`;
+    }
+  }else{
+    h+=`<div class="card" style="font-size:.8rem;color:var(--text2);padding:10px 16px">只看全局用。要录入请用"按店录入"，点列头的店名可以直接跳过去。<br><span style="color:var(--text3)">For viewing. To enter prices use "By store" — click a store name to jump there.</span>
+      <div class="lino-legend" style="margin-top:6px"><span class="lt1">≤69</span><span class="lt2">70–79.99</span><span class="lt3">80–85.99</span><span class="lt4">≥86</span><span class="lino-miss-demo">有销量没填价 Selling, no price</span></div></div>`;
   }
+  h+='<div id="linoList"></div>';
+  box.innerHTML=h;
+  linoRenderList();
+}
+function linoSkuFiltered(){
+  const q=linoQ.trim().toLowerCase();
+  return lino.skus.filter(s=>s.is_active&&(!q||s.sku.toLowerCase().includes(q))).sort((a,b)=>a.sku<b.sku?-1:a.sku>b.sku?1:0);
+}
+function linoImgHtml(k,big){
+  const img=k.image_thumb||k.image_src;const cls=big?'lino-img lino-img-big':'lino-img';
+  return img?`<a href="${esc(k.image_src||k.image_thumb)}" target="_blank"><img src="${esc(img)}" loading="lazy" class="${cls}" alt=""></a>`
+    :`<label class="lino-noimg${big?' lino-img-big':''}" title="上传或粘贴图片 Upload / paste image" tabindex="0" onpaste="linoPasteImg(event,'${esc(k.sku)}')">📷<input type="file" accept="image/*" style="display:none" onchange="linoUploadImg(this.files[0],'${esc(k.sku)}')"></label>`;
+}
+const linoFmt=p=>p!=null?p.toFixed(2).replace(/\.00$/,''):'';
+function linoRenderList(){
+  const box=document.getElementById('linoList');if(!box)return;
+  const stores=lino.stores.filter(s=>s.is_active);
+  let skus=linoSkuFiltered();
+  if(linoView==='store'){
+    const st=linoStore;if(!st){box.innerHTML='';return}
+    if(linoFilter==='empty')skus=skus.filter(k=>lino.prices[linoKey(k.sku,st)]==null);
+    if(linoFilter==='miss')skus=skus.filter(k=>lino.prices[linoKey(k.sku,st)]==null&&lino.recent[linoKey(k.sku,st)]>0);
+    let h='<div class="lino-list">';
+    for(const k of skus){
+      const key=linoKey(k.sku,st),p=lino.prices[key],miss=p==null&&lino.recent[key]>0;
+      const others=stores.filter(s=>s.store!==st).map(s=>lino.prices[linoKey(k.sku,s.store)]).filter(x=>x!=null);
+      const ref=others.length?(Math.min(...others)===Math.max(...others)?'₱'+linoFmt(others[0]):'₱'+linoFmt(Math.min(...others))+' – ₱'+linoFmt(Math.max(...others))):'';
+      h+=`<div class="lino-row${miss?' miss':''}">${linoImgHtml(k,true)}
+        <div class="lino-row-sku"><b>${esc(k.sku)}</b>${miss?'<span class="lino-misstag">🔴 有销量没填价 Selling, no price</span>':''}${ref?`<span class="hm-sub">其他店 Other stores: ${ref}</span>`:''}</div>
+        <div class="lino-row-price"><span>₱</span><input type="number" step="0.01" min="0" inputmode="decimal" class="lino-pin ${linoTier(p)}" value="${p!=null?p:''}" data-sku="${esc(k.sku)}" placeholder="—"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();linoNextInput(this)}" onchange="linoPinSave(this)"></div>
+        <button class="lino-del" title="删除（不卖了）Delete (no longer sold)" onclick="linoDeleteSku('${esc(k.sku)}')">🗑️</button></div>`;
+    }
+    if(!skus.length)h+=`<div class="card" style="text-align:center;color:var(--text3)">${linoFilter==='miss'?'✅ 没有漏填的 Nothing missing':'没有 SKU · No SKUs'}</div>`;
+    box.innerHTML=h+'</div>';
+    return;
+  }
+  // 总览矩阵
+  let h=`<div class="lino-wrap"><table class="lino-table"><thead><tr><th class="lino-sticky">SKU</th>`;
+  const now=Date.now();
+  for(const s of stores){const fresh=s.checked_at&&(now-new Date(s.checked_at).getTime())<LINO_CHECK_DAYS*86400000;
+    h+=`<th title="${esc(s.store)}" style="cursor:pointer" onclick="linoView='store';linoStore='${esc(s.store).replace(/'/g,"\\'")}';linoRenderPrices()"><div class="lino-sh">${esc(s.label)}</div><div class="lino-ck ${fresh?'ok':'stale'}">${fresh?'✅':'⚠️'}</div></th>`;}
   h+='</tr></thead><tbody>';
   for(const k of skus){
-    const img=k.image_thumb||k.image_src;
-    h+=`<tr class="${k.is_active?'':'lino-off'}"><td class="lino-sticky"><div class="lino-skucell">
-      ${img?`<a href="${esc(k.image_src||k.image_thumb)}" target="_blank"><img src="${esc(img)}" loading="lazy" class="lino-img" alt=""></a>`:`<label class="lino-noimg" title="上传或粘贴图片 Upload / paste image" tabindex="0" onpaste="linoPasteImg(event,'${esc(k.sku)}')">📷<input type="file" accept="image/*" style="display:none" onchange="linoUploadImg(this.files[0],'${esc(k.sku)}')"></label>`}
-      <div><b>${esc(k.sku)}</b>${k.is_active?'':' <span class="badge">停用 Inactive</span>'}</div></div></td>`;
-    for(const s of stores){
-      const key=linoKey(k.sku,s.store),p=lino.prices[key];
-      const miss=p==null&&lino.recent[key]>0;if(miss&&k.is_active)missing++;
-      h+=`<td class="lino-cell ${linoTier(p)}${miss?' lino-miss':''}" data-sku="${esc(k.sku)}" data-store="${esc(s.store)}" onclick="linoEdit(this)" title="${esc(k.sku)} @ ${esc(s.label)}${miss?' · 有销量但没填价格 Selling but no price':''}">${p!=null?p.toFixed(2).replace(/\.00$/,''):'<span class="lino-empty">—</span>'}</td>`;
-    }
+    h+=`<tr><td class="lino-sticky"><div class="lino-skucell">${linoImgHtml(k,false)}<b>${esc(k.sku)}</b><button class="lino-del" title="删除（不卖了）Delete (no longer sold)" onclick="linoDeleteSku('${esc(k.sku)}')">🗑️</button></div></td>`;
+    for(const s of stores){const key=linoKey(k.sku,s.store),p=lino.prices[key],miss=p==null&&lino.recent[key]>0;
+      h+=`<td class="lino-cell ${linoTier(p)}${miss?' lino-miss':''}" data-sku="${esc(k.sku)}" data-store="${esc(s.store)}" onclick="linoEdit(this)">${p!=null?linoFmt(p):'<span class="lino-empty">—</span>'}</td>`;}
     h+='</tr>';
   }
-  if(!skus.length)h+=`<tr><td colspan="${stores.length+1}" style="text-align:center;color:var(--text3);padding:20px">没有 SKU · No SKUs</td></tr>`;
-  h+='</tbody></table></div>';
-  if(missing)h=`<div class="card" style="background:#fef2f2;border-color:#fca5a5;color:var(--bad);font-size:.85rem">🔴 有 <b>${missing}</b> 个格子最近 30 天有销量但没填价格（红框），请补上。<br>${missing} cell(s) have sales in the last 30 days but no price (red border). Please fill them in.</div>`+h;
-  box.innerHTML=h;
+  box.innerHTML=h+'</tbody></table></div>';
+}
+function linoNextInput(inp){
+  const all=[...document.querySelectorAll('.lino-pin')];const i=all.indexOf(inp);
+  inp.blur(); // 触发 onchange 保存
+  if(all[i+1]){all[i+1].focus();all[i+1].select();all[i+1].scrollIntoView({block:'center',behavior:'smooth'})}
+}
+async function linoPinSave(inp){
+  const sku=inp.dataset.sku,st=linoStore,key=linoKey(sku,st),old=lino.prices[key]??null;
+  const raw=inp.value.trim();const val=raw===''?null:Math.round(parseFloat(raw)*100)/100;
+  if(raw!==''&&(isNaN(val)||val<=0||val>1000)){toast('价格不对 Invalid price');inp.value=old??'';return}
+  if(val===old)return;
+  await linoSavePrice(sku,st,old,val);
+  inp.className='lino-pin '+linoTier(lino.prices[key]);
+  const row=inp.closest('.lino-row');
+  if(row&&lino.prices[key]!=null){row.classList.remove('miss');const t=row.querySelector('.lino-misstag');if(t)t.remove();}
+  linoUpdatePills();
+}
+function linoUpdatePills(){
+  // 只更新店铺按钮上的数字，不重画整个列表（保持输入焦点）
+  const act=lino.skus.filter(s=>s.is_active);
+  document.querySelectorAll('.lino-pill').forEach((b,i)=>{
+    const s=lino.stores.filter(x=>x.is_active)[i];if(!s)return;
+    const sp=b.querySelector('span');if(sp)sp.textContent=act.filter(k=>lino.prices[linoKey(k.sku,s.store)]!=null).length+'/'+act.length;
+    const m=act.filter(k=>lino.prices[linoKey(k.sku,s.store)]==null&&lino.recent[linoKey(k.sku,s.store)]>0).length;
+    const mi=b.querySelector('.lino-pill-miss');if(mi){if(m)mi.textContent=m;else mi.remove();}
+  });
+}
+async function linoDeleteSku(sku){
+  if(!confirm('删除 '+sku+'？（不卖了）\n删除后价格表里不再显示，历史销量和改价记录会保留，管理员可以恢复。\n\nDelete '+sku+' (no longer sold)? It will be hidden; history is kept and admin can restore it.'))return;
+  const r=await sb.patch('tks_lino_skus',{sku:encodeURIComponent(sku)},{is_active:false}).catch(()=>null);
+  if(!Array.isArray(r)||!r.length){toast('❌ 删除失败 Delete failed');return}
+  const k=lino.skus.find(s=>s.sku===sku);if(k)k.is_active=false;
+  toast('🗑️ 已删除 Deleted '+sku);linoRenderPrices();
 }
 function linoEdit(td){
   if(td.querySelector('input'))return;
@@ -1501,10 +1585,12 @@ async function linoAddSku(){
   const v=(prompt('新 SKU（和马帮库存SKU完全一致，例如 Li-K-12401B）\nNew SKU (exactly as in Mabang, e.g. Li-K-12401B):')||'').trim();
   if(!v)return;
   if(!/^Li-/i.test(v)){toast('SKU 要以 Li- 开头 SKU must start with Li-');return}
-  if(lino.skus.some(s=>s.sku.toLowerCase()===v.toLowerCase())){toast('这个 SKU 已经有了 Already exists');return}
+  const ex=lino.skus.find(s=>s.sku.toLowerCase()===v.toLowerCase());
+  if(ex&&ex.is_active){toast('这个 SKU 已经有了 Already exists');return}
+  if(ex){const r=await sb.patch('tks_lino_skus',{sku:encodeURIComponent(ex.sku)},{is_active:true}).catch(()=>null);if(Array.isArray(r)&&r.length){ex.is_active=true;toast('✅ 已恢复 Restored');linoRenderPrices()}else toast('❌ 失败 Failed');return}
   const r=await sb.post('tks_lino_skus',{sku:v}).catch(()=>null);
   if(!Array.isArray(r)){toast('❌ 失败 Failed');return}
-  lino.skus.push(r[0]);lino.skus.sort((a,b)=>a.sku.localeCompare(b.sku));toast('✅ 已添加 Added');linoRenderPrices();
+  lino.skus.push(r[0]);toast('✅ 已添加 Added');linoRenderPrices();
 }
 async function linoThumbFromBlob(blob){
   // 压成 160px 小图（约 8KB）
