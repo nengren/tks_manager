@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-17-v62-linoleum-zoom -->
+<!-- BUILD-VERSION: 2026-11-17-v63-linoleum-copy-sku -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -123,6 +123,7 @@ text-align:center;cursor:pointer;transition:all .15s}
 .lino-batch{border-color:var(--pri)}.lino-batch-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0;font-size:.85rem}.lino-batch-row label{display:inline-flex;gap:5px;align-items:center;cursor:pointer}
 .lino-imgwrap{position:relative;display:inline-block;cursor:zoom-in;flex-shrink:0}.lino-eye{position:absolute;right:2px;bottom:2px;font-style:normal;font-size:.7rem;background:rgba(15,23,42,.65);color:#fff;border-radius:5px;padding:0 3px;line-height:1.4}.lino-imgwrap:hover .lino-eye{background:var(--pri)}
 .lino-zoom{position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}.lino-zoom-box{position:relative;background:#fff;border-radius:14px;padding:12px;max-width:min(720px,92vw);cursor:default;box-shadow:0 20px 50px rgba(0,0,0,.35)}.lino-zoom-box img{display:block;max-width:100%;max-height:75vh;border-radius:8px;margin:0 auto}.lino-zoom-cap{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:8px;font-size:.95rem}.lino-zoom-cap span{font-size:.75rem;color:var(--text3)}.lino-zoom-x{position:absolute;top:-12px;right:-12px;width:32px;height:32px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;font-size:1rem}
+.lino-skuline{display:inline-flex;align-items:center;gap:4px}.lino-cut{border:none;background:none;cursor:pointer;font-size:.85rem;padding:2px 4px;border-radius:5px;opacity:.55}.lino-cut:hover{opacity:1;background:var(--pri-l)}
 .cs-card{padding:16px 20px}.cs-q{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;font-size:.88rem}.cs-actions{display:flex;gap:6px;flex-shrink:0}.cs-actions .btn{width:auto}.cs-en{color:var(--text2);font-size:.8rem;font-weight:400}.cs-tip{margin-top:8px;font-size:.8rem;color:#92400e;background:var(--warn-bg);padding:6px 10px;border-radius:6px}.cs-reply{margin-top:10px;background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.84rem;white-space:pre-wrap;line-height:1.6}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
@@ -1484,6 +1485,13 @@ function linoZoom(sku){
 }
 function linoZoomKey(e){if(e.key==='Escape')linoZoomClose()}
 function linoZoomClose(){const d=document.getElementById('linoZoom');if(d)d.remove();document.removeEventListener('keydown',linoZoomKey)}
+async function linoCopySku(sku,btn){
+  let ok=false;
+  try{await navigator.clipboard.writeText(sku);ok=true}catch(e){
+    try{const t=document.createElement('textarea');t.value=sku;document.body.appendChild(t);t.select();ok=document.execCommand('copy');t.remove()}catch(e2){}}
+  if(ok){toast('✂️ 已复制 Copied: '+sku);if(btn){btn.textContent='✅';setTimeout(()=>{btn.textContent='✂️'},1200)}}
+  else toast('❌ 复制失败 Copy failed');
+}
 const linoFmt=p=>p!=null?p.toFixed(2).replace(/\.00$/,''):'';
 function linoRenderList(){
   const box=document.getElementById('linoList');if(!box)return;
@@ -1499,7 +1507,7 @@ function linoRenderList(){
       const others=stores.filter(s=>s.store!==st).map(s=>lino.prices[linoKey(k.sku,s.store)]).filter(x=>x!=null);
       const ref=others.length?(Math.min(...others)===Math.max(...others)?'₱'+linoFmt(others[0]):'₱'+linoFmt(Math.min(...others))+' – ₱'+linoFmt(Math.max(...others))):'';
       h+=`<div class="lino-row${miss?' miss':''}">${linoImgHtml(k,true)}
-        <div class="lino-row-sku"><b>${esc(k.sku)}</b>${miss?'<span class="lino-misstag">🔴 有销量没填价 Selling, no price</span>':''}${ref?`<span class="hm-sub">其他店 Other stores: ${ref}</span>`:''}</div>
+        <div class="lino-row-sku"><span class="lino-skuline"><b>${esc(k.sku)}</b><button class="lino-cut" title="复制 SKU Copy SKU" onclick="event.stopPropagation();linoCopySku('${esc(k.sku)}',this)">✂️</button></span>${miss?'<span class="lino-misstag">🔴 有销量没填价 Selling, no price</span>':''}${ref?`<span class="hm-sub">其他店 Other stores: ${ref}</span>`:''}</div>
         <div class="lino-row-price"><span>₱</span><input type="number" step="0.01" min="0" inputmode="decimal" class="lino-pin ${linoTier(p)}" value="${p!=null?p:''}" data-sku="${esc(k.sku)}" placeholder="—"
           onkeydown="if(event.key==='Enter'){event.preventDefault();linoNextInput(this)}" onchange="linoPinSave(this)"></div>
         <button class="lino-del" title="删除（不卖了）Delete (no longer sold)" onclick="linoDeleteSku('${esc(k.sku)}')">🗑️</button></div>`;
@@ -1515,7 +1523,7 @@ function linoRenderList(){
     h+=`<th title="${esc(s.store)}" style="cursor:pointer" onclick="linoView='store';linoStore='${esc(s.store).replace(/'/g,"\\'")}';linoRenderPrices()"><div class="lino-sh">${esc(s.label)}</div><div class="lino-ck ${fresh?'ok':'stale'}">${fresh?'✅':'⚠️'}</div></th>`;}
   h+='</tr></thead><tbody>';
   for(const k of skus){
-    h+=`<tr><td class="lino-sticky"><div class="lino-skucell">${linoImgHtml(k,false)}<b>${esc(k.sku)}</b><button class="lino-del" title="删除（不卖了）Delete (no longer sold)" onclick="linoDeleteSku('${esc(k.sku)}')">🗑️</button></div></td>`;
+    h+=`<tr><td class="lino-sticky"><div class="lino-skucell">${linoImgHtml(k,false)}<b>${esc(k.sku)}</b><button class="lino-cut" title="复制 SKU Copy SKU" onclick="event.stopPropagation();linoCopySku('${esc(k.sku)}',this)">✂️</button><button class="lino-del" title="删除（不卖了）Delete (no longer sold)" onclick="linoDeleteSku('${esc(k.sku)}')">🗑️</button></div></td>`;
     for(const s of stores){const key=linoKey(k.sku,s.store),p=lino.prices[key],miss=p==null&&lino.recent[key]>0;
       h+=`<td class="lino-cell ${linoTier(p)}${miss?' lino-miss':''}" data-sku="${esc(k.sku)}" data-store="${esc(s.store)}" onclick="linoEdit(this)">${p!=null?linoFmt(p):'<span class="lino-empty">—</span>'}</td>`;}
     h+='</tr>';
