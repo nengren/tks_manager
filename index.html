@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-18-v65-linoleum-listed-view -->
+<!-- BUILD-VERSION: 2026-11-18-v66-linoleum-sort-num -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1468,9 +1468,12 @@ function linoRenderPrices(){
   box.innerHTML=h;
   linoRenderList();
 }
+// 排序：忽略 Li-X / Li-K / Li-i，只按 SKU 里的数字从小到大；数字相同再按后缀字母、系列；没有数字的排最后
+function linoSkuNum(sku){const m=String(sku).replace(/^Li-[A-Za-z]+-/,'').match(/(\d+)([A-Za-z]*)/);return m?{n:parseInt(m[1],10),suf:m[2]}:{n:Infinity,suf:''}}
+function linoSkuCmp(a,b){const x=linoSkuNum(a.sku),y=linoSkuNum(b.sku);if(x.n!==y.n)return x.n-y.n;if(x.suf!==y.suf)return x.suf<y.suf?-1:1;return a.sku<b.sku?-1:a.sku>b.sku?1:0}
 function linoSkuFiltered(){
   const q=linoQ.trim().toLowerCase();
-  return lino.skus.filter(s=>s.is_active&&(!q||s.sku.toLowerCase().includes(q))).sort((a,b)=>a.sku<b.sku?-1:a.sku>b.sku?1:0);
+  return lino.skus.filter(s=>s.is_active&&(!q||s.sku.toLowerCase().includes(q))).sort(linoSkuCmp);
 }
 function linoImgHtml(k,big){
   const img=k.image_thumb||k.image_src;const cls=big?'lino-img lino-img-big':'lino-img';
