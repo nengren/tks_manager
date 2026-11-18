@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-17-v63-linoleum-copy-sku -->
+<!-- BUILD-VERSION: 2026-11-18-v64-linoleum-select -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -124,6 +124,8 @@ text-align:center;cursor:pointer;transition:all .15s}
 .lino-imgwrap{position:relative;display:inline-block;cursor:zoom-in;flex-shrink:0}.lino-eye{position:absolute;right:2px;bottom:2px;font-style:normal;font-size:.7rem;background:rgba(15,23,42,.65);color:#fff;border-radius:5px;padding:0 3px;line-height:1.4}.lino-imgwrap:hover .lino-eye{background:var(--pri)}
 .lino-zoom{position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:9000;display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}.lino-zoom-box{position:relative;background:#fff;border-radius:14px;padding:12px;max-width:min(720px,92vw);cursor:default;box-shadow:0 20px 50px rgba(0,0,0,.35)}.lino-zoom-box img{display:block;max-width:100%;max-height:75vh;border-radius:8px;margin:0 auto}.lino-zoom-cap{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:8px;font-size:.95rem}.lino-zoom-cap span{font-size:.75rem;color:var(--text3)}.lino-zoom-x{position:absolute;top:-12px;right:-12px;width:32px;height:32px;border-radius:50%;border:none;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;font-size:1rem}
 .lino-skuline{display:inline-flex;align-items:center;gap:4px}.lino-cut{border:none;background:none;cursor:pointer;font-size:.85rem;padding:2px 4px;border-radius:5px;opacity:.55}.lino-cut:hover{opacity:1;background:var(--pri-l)}
+.lino-chk{display:flex;align-items:center;padding:6px;cursor:pointer}.lino-chk input{width:20px;height:20px;cursor:pointer}.lino-row.sel{background:#eff6ff;border-color:var(--pri)}
+.lino-selhelp{background:var(--pri-l);border-color:#bae6fd;font-size:.85rem}.lino-selbar{position:sticky;bottom:0;z-index:5;margin-top:10px;max-width:860px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#0f172a;color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 -4px 16px rgba(0,0,0,.15)}.lino-selbar .hm-sub{color:#94a3b8}.lino-selmini{font-size:.72rem;margin-top:3px;color:#cbd5e1}.lino-selmini a{cursor:pointer;text-decoration:underline}.lino-selbar .btn-ghost{background:#fff}
 .cs-card{padding:16px 20px}.cs-q{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;font-size:.88rem}.cs-actions{display:flex;gap:6px;flex-shrink:0}.cs-actions .btn{width:auto}.cs-en{color:var(--text2);font-size:.8rem;font-weight:400}.cs-tip{margin-top:8px;font-size:.8rem;color:#92400e;background:var(--warn-bg);padding:6px 10px;border-radius:6px}.cs-reply{margin-top:10px;background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.84rem;white-space:pre-wrap;line-height:1.6}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
@@ -1396,7 +1398,7 @@ async function rDashboard(el){
 function shiftDashWeek(n){dashWeekStart=addDays(dashWeekStart,n);rDashboard(document.getElementById('mainBody'));}
 
 /* ---- LINOLEUM 地板皮革：价格表（所有人可看可改）+ 数据导入/设置（只有 admin） ---- */
-let linoTab='prices',linoQ='',linoShowInactive=false,linoView='store',linoStore=null,linoFilter='all',lino={stores:[],skus:[],prices:{},recent:{},loaded:false};
+let linoTab='prices',linoQ='',linoShowInactive=false,linoView='store',linoStore=null,linoFilter='all',linoSelMode=false,linoSel=new Set(),lino={stores:[],skus:[],prices:{},recent:{},loaded:false};
 const LINO_CHECK_DAYS=7;
 const linoIsAdmin=()=>U.role==='admin';
 function linoTier(p){if(p==null)return '';if(p<=69.99)return 'lt1';if(p<=79.99)return 'lt2';if(p<=85.99)return 'lt3';return 'lt4';}
@@ -1443,16 +1445,17 @@ function linoRenderPrices(){
     <button class="btn btn-ghost btn-sm" style="width:auto" onclick="linoAddSku()">➕ 新增 SKU Add SKU</button>
   </div>`;
   if(linoView==='store'){
-    h+='<div class="lino-pills">'+stores.map(s=>{const m=missOf(s.store);return `<button class="lino-pill${s.store===linoStore?' on':''}" onclick="linoStore='${esc(s.store).replace(/'/g,"\\'")}';linoRenderPrices()">
+    h+='<div class="lino-pills">'+stores.map(s=>{const m=missOf(s.store);return `<button class="lino-pill${s.store===linoStore?' on':''}" onclick="linoStore='${esc(s.store).replace(/'/g,"\\'")}';linoSel.clear();linoRenderPrices()">
       <b>${esc(s.label)}</b><span>${filledOf(s.store)}/${act.length}</span>${m?`<i class="lino-pill-miss">${m}</i>`:''}<em class="${isFresh(s)?'ok':'stale'}">${isFresh(s)?'✅':'⚠️'}</em></button>`}).join('')+'</div>';
     const s=stores.find(x=>x.store===linoStore);
     if(s){
       const ck=s.checked_at?new Date(s.checked_at):null;
       h+=`<div class="card lino-storehead"><div><div style="font-size:1.25rem;font-weight:800">${esc(s.label)} <span style="font-size:.85rem;font-weight:500;color:var(--text3)">${esc(s.store)}</span></div>
-        <div class="hm-sub">已填 Filled <b>${filledOf(s.store)}</b> / ${act.length} · ${missOf(s.store)?`<span style="color:var(--bad)">🔴 有销量没填价 Selling, no price: <b>${missOf(s.store)}</b></span> · `:''}${ck?`最后核对 Last checked ${ck.getMonth()+1}-${ck.getDate()}${isFresh(s)?' ✅':' ⚠️'}`:'⚠️ 还没核对 Not checked yet'}</div></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" style="width:auto" onclick="linoBatchOpen()">⚡ 批量填入 Batch fill</button>
+        <div class="hm-sub" style="font-size:.85rem">本店上架 Listed: <b style="font-size:1.05rem;color:var(--pri)">${filledOf(s.store)}</b> 个（共 ${act.length} 个 SKU）· <span style="color:var(--text3)">和 TikTok 后台的商品数对一下 Compare with TikTok's count</span><br>${missOf(s.store)?`<span style="color:var(--bad)">🔴 有销量没填价 Selling, no price: <b>${missOf(s.store)}</b></span> · `:''}${ck?`最后核对 Last checked ${ck.getMonth()+1}-${ck.getDate()}${isFresh(s)?' ✅':' ⚠️'}`:'⚠️ 还没核对 Not checked yet'}</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ${linoSelMode?'btn-pri':'btn-ghost'} btn-sm" style="width:auto" onclick="linoSelMode=!linoSelMode;linoSel.clear();linoRenderPrices()">☑️ ${linoSelMode?'退出勾选 Exit select':'勾选模式 Select mode'}</button>
+        <button class="btn btn-ghost btn-sm" style="width:auto" onclick="linoBatchOpen()">⚡ 批量填入 Batch fill</button>
         <button class="btn btn-pri btn-sm" style="width:auto" onclick="linoCheckStore('${esc(s.store).replace(/'/g,"\\'")}')">✓ 本店已和 TikTok 核对 Checked with TikTok</button></div></div>
-      <div id="linoBatch"></div>
+      <div id="linoBatch"></div>${linoSelMode?`<div class="card lino-selhelp">☑️ <b>勾选模式</b>：对照 TikTok 后台，<b>把这家店上架的 SKU 勾上</b>，再点下面的"只保留勾选的"。<br><span style="color:var(--text2)"><b>Select mode</b>: tick every SKU this store lists on TikTok, then click "Keep only ticked" below.</span></div>`:''}
       <div class="lino-filter">${[['all','全部 All'],['empty','未填 Empty'],['miss','🔴 有销量没填价 Selling, no price']].map(([v,l])=>`<button class="${linoFilter===v?'on':''}" onclick="linoFilter='${v}';linoRenderList()">${l}</button>`).join('')}
         <span class="hm-sub" style="margin-left:auto">输入价格后按回车跳到下一个；留空 = 没上架 · Type price, Enter = next; empty = not listed</span></div>`;
     }
@@ -1506,14 +1509,16 @@ function linoRenderList(){
       const key=linoKey(k.sku,st),p=lino.prices[key],miss=p==null&&lino.recent[key]>0;
       const others=stores.filter(s=>s.store!==st).map(s=>lino.prices[linoKey(k.sku,s.store)]).filter(x=>x!=null);
       const ref=others.length?(Math.min(...others)===Math.max(...others)?'₱'+linoFmt(others[0]):'₱'+linoFmt(Math.min(...others))+' – ₱'+linoFmt(Math.max(...others))):'';
-      h+=`<div class="lino-row${miss?' miss':''}">${linoImgHtml(k,true)}
+      const sel=linoSel.has(k.sku);
+      h+=`<div class="lino-row${miss?' miss':''}${linoSelMode&&sel?' sel':''}">${linoSelMode?`<label class="lino-chk"><input type="checkbox" ${sel?'checked':''} onchange="linoToggleSel('${esc(k.sku)}',this)"></label>`:''}${linoImgHtml(k,true)}
         <div class="lino-row-sku"><span class="lino-skuline"><b>${esc(k.sku)}</b><button class="lino-cut" title="复制 SKU Copy SKU" onclick="event.stopPropagation();linoCopySku('${esc(k.sku)}',this)">✂️</button></span>${miss?'<span class="lino-misstag">🔴 有销量没填价 Selling, no price</span>':''}${ref?`<span class="hm-sub">其他店 Other stores: ${ref}</span>`:''}</div>
         <div class="lino-row-price"><span>₱</span><input type="number" step="0.01" min="0" inputmode="decimal" class="lino-pin ${linoTier(p)}" value="${p!=null?p:''}" data-sku="${esc(k.sku)}" placeholder="—"
           onkeydown="if(event.key==='Enter'){event.preventDefault();linoNextInput(this)}" onchange="linoPinSave(this)"></div>
         <button class="lino-del" title="删除（不卖了）Delete (no longer sold)" onclick="linoDeleteSku('${esc(k.sku)}')">🗑️</button></div>`;
     }
     if(!skus.length)h+=`<div class="card" style="text-align:center;color:var(--text3)">${linoFilter==='miss'?'✅ 没有漏填的 Nothing missing':'没有 SKU · No SKUs'}</div>`;
-    box.innerHTML=h+'</div>';
+    box.innerHTML=h+'</div>'+(linoSelMode?'<div id="linoSelBar"></div>':'');
+    if(linoSelMode)linoSelBarRender();
     return;
   }
   // 总览矩阵
@@ -1612,7 +1617,8 @@ function linoBatchOpen(){
       <select id="lbFrom" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit">${others.map(s=>`<option value="${esc(s.store)}">${esc(s.label)}（已填 ${lino.skus.filter(k=>k.is_active&&lino.prices[linoKey(k.sku,s.store)]!=null).length}）</option>`).join('')}</select></div>
     <div class="lino-batch-row"><b style="font-size:.8rem">范围 Scope:</b>
       <label><input type="radio" name="lbScope" value="empty" checked> 只填空格（已有价格的不动）Only empty cells</label>
-      <label><input type="radio" name="lbScope" value="all"> 全部覆盖 Overwrite all</label></div>
+      <label><input type="radio" name="lbScope" value="all"> 全部覆盖 Overwrite all</label>
+      <label class="lb-exact"><input type="radio" name="lbScope" value="exact"> 完全复制（空格也照搬，两家店变一模一样）Exact copy</label></div>
     <div style="display:flex;gap:8px;margin-top:6px"><button class="btn btn-pri btn-sm" style="width:auto" onclick="linoBatchRun()">执行 Apply</button><button class="btn btn-ghost btn-sm" style="width:auto" onclick="document.getElementById('linoBatch').innerHTML=''">取消 Cancel</button></div>
     <div class="hm-sub" style="margin-top:6px">只改在售的 SKU；每个改动的格子都会记录改价。填完再把不一样的单独改掉就行。<br>Only active SKUs; every changed cell is logged. Then fix the few that are different.</div></div>`;
 }
@@ -1625,19 +1631,65 @@ async function linoBatchRun(){
     for(const k of act){const old=lino.prices[linoKey(k.sku,st)]??null;if(scope==='empty'&&old!=null)continue;if(old!==v)changes.push({sku:k.sku,old,nw:v})}
   }else{
     const from=document.getElementById('lbFrom').value;if(!from){toast('没有可复制的店 No store to copy from');return}
-    for(const k of act){const src=lino.prices[linoKey(k.sku,from)];if(src==null)continue;const old=lino.prices[linoKey(k.sku,st)]??null;if(scope==='empty'&&old!=null)continue;if(old!==src)changes.push({sku:k.sku,old,nw:src})}
+    for(const k of act){const src=lino.prices[linoKey(k.sku,from)]??null;if(src==null&&scope!=='exact')continue;const old=lino.prices[linoKey(k.sku,st)]??null;if(scope==='empty'&&old!=null)continue;if(old!==src)changes.push({sku:k.sku,old,nw:src})}
   }
+  if(mode==='same'&&scope==='exact'){toast('“完全复制”只用于从另一家店复制 Exact copy only works with Copy from store');return}
+  await linoApplyChanges(st,changes);
+}
+// 批量写入：nw 为空 = 清空（没上架）；每个改动都写改价记录
+async function linoApplyChanges(st,changes,confirmMsg){
   const label=lino.stores.find(s=>s.store===st)?.label||st;
-  if(!changes.length){toast('没有需要改动的格子 Nothing to change');return}
-  if(!confirm(`将改动 ${label} 的 ${changes.length} 个价格，确定吗？\nThis will change ${changes.length} price(s) in ${label}. Continue?`))return;
+  if(!changes.length){toast('没有需要改动的格子 Nothing to change');return false}
+  const nSet=changes.filter(c=>c.nw!=null).length,nClr=changes.length-nSet;
+  if(!confirm(confirmMsg||`${label}：将填价 ${nSet} 个${nClr?`、清空 ${nClr} 个`:''}，确定吗？\n${label}: set ${nSet}${nClr?`, clear ${nClr}`:''} price(s). Continue?`))return false;
   try{
     const now=new Date().toISOString();
-    const res=await fetch(SB_URL+'/rest/v1/tks_lino_prices?on_conflict=sku,store',{method:'POST',headers:{...sb.h,'Prefer':'return=minimal,resolution=merge-duplicates'},body:JSON.stringify(changes.map(c=>({sku:c.sku,store:st,price:c.nw,updated_by:U.id,updated_at:now})))});
-    if(!res.ok)throw new Error(res.status);
+    const sets=changes.filter(c=>c.nw!=null),clrs=changes.filter(c=>c.nw==null);
+    if(sets.length){const res=await fetch(SB_URL+'/rest/v1/tks_lino_prices?on_conflict=sku,store',{method:'POST',headers:{...sb.h,'Prefer':'return=minimal,resolution=merge-duplicates'},body:JSON.stringify(sets.map(c=>({sku:c.sku,store:st,price:c.nw,updated_by:U.id,updated_at:now})))});if(!res.ok)throw new Error(res.status);}
+    for(let i=0;i<clrs.length;i+=50){
+      const list=clrs.slice(i,i+50).map(c=>'"'+encodeURIComponent(c.sku.replace(/"/g,''))+'"').join(',');
+      const res=await fetch(SB_URL+'/rest/v1/tks_lino_prices?store=eq.'+encodeURIComponent(st)+'&sku=in.('+list+')',{method:'DELETE',headers:sb.h});if(!res.ok)throw new Error(res.status);
+    }
     await fetch(SB_URL+'/rest/v1/tks_lino_price_log',{method:'POST',headers:{...sb.h,'Prefer':'return=minimal'},body:JSON.stringify(changes.map(c=>({sku:c.sku,store:st,old_price:c.old,new_price:c.nw,effective_date:today(),changed_by:U.id})))});
-    changes.forEach(c=>{lino.prices[linoKey(c.sku,st)]=c.nw});
-    toast(`✅ 已填入 ${changes.length} 个 · ${changes.length} filled`);linoRenderPrices();
-  }catch(e){toast('❌ 批量填入失败 Batch fill failed '+(e.message||''))}
+    changes.forEach(c=>{const k=linoKey(c.sku,st);if(c.nw==null)delete lino.prices[k];else lino.prices[k]=c.nw});
+    toast(`✅ 已完成 Done：填价 ${nSet}${nClr?` · 清空 ${nClr}`:''}`);linoRenderPrices();return true;
+  }catch(e){toast('❌ 批量操作失败 Batch failed '+(e.message||''));return false}
+}
+/* ---- 勾选模式 ---- */
+function linoToggleSel(sku,cb){if(cb.checked)linoSel.add(sku);else linoSel.delete(sku);cb.closest('.lino-row')?.classList.toggle('sel',cb.checked);linoSelBarRender()}
+function linoSelAll(how){
+  const shown=[...document.querySelectorAll('.lino-row .lino-pin')].map(i=>i.dataset.sku);
+  if(how==='none')linoSel.clear();
+  else if(how==='priced'){linoSel.clear();lino.skus.filter(k=>k.is_active&&lino.prices[linoKey(k.sku,linoStore)]!=null).forEach(k=>linoSel.add(k.sku))}
+  else if(how==='shown')shown.forEach(s=>linoSel.add(s));
+  linoRenderList();
+}
+function linoSelBarRender(){
+  const b=document.getElementById('linoSelBar');if(!b)return;
+  const n=linoSel.size,act=lino.skus.filter(k=>k.is_active).length;
+  b.innerHTML=`<div class="lino-selbar"><div><b style="font-size:1.1rem">${n}</b> 个已勾选 ticked <span class="hm-sub">/ ${act}</span>
+      <div class="lino-selmini"><a onclick="linoSelAll('shown')">全选当前列表 Tick all shown</a> · <a onclick="linoSelAll('priced')">按现有价格勾选 Tick priced</a> · <a onclick="linoSelAll('none')">全不选 Clear ticks</a></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-pri btn-sm" style="width:auto" onclick="linoKeepSelected()">✅ 只保留勾选的，其余清空 Keep only ticked</button>
+      <span style="display:inline-flex;gap:4px;align-items:center">₱<input type="number" step="0.01" id="linoSelPrice" class="lino-pin" style="width:90px;padding:6px 8px;font-size:.9rem" placeholder="79.9"><button class="btn btn-ghost btn-sm" style="width:auto" onclick="linoPriceSelected()">勾选的填这个价 Set price</button></span>
+    </div></div>`;
+}
+async function linoKeepSelected(){
+  const st=linoStore,label=lino.stores.find(s=>s.store===st)?.label||st;
+  if(!linoSel.size){toast('还没勾选任何 SKU Nothing ticked');return}
+  const act=lino.skus.filter(k=>k.is_active);
+  const clr=act.filter(k=>!linoSel.has(k.sku)&&lino.prices[linoKey(k.sku,st)]!=null).map(k=>({sku:k.sku,old:lino.prices[linoKey(k.sku,st)],nw:null}));
+  const noPrice=act.filter(k=>linoSel.has(k.sku)&&lino.prices[linoKey(k.sku,st)]==null).length;
+  if(!clr.length){toast(noPrice?`没有要清空的；勾选的里有 ${noPrice} 个还没价格，请填价 Nothing to clear; ${noPrice} ticked have no price yet`:'没有要清空的 Nothing to clear');return}
+  const ok=await linoApplyChanges(st,clr,`${label}：保留勾选的 ${linoSel.size} 个，清空其余 ${clr.length} 个的价格（视为没上架），确定吗？\n${label}: keep ${linoSel.size} ticked, clear ${clr.length} others (not listed). Continue?`);
+  if(ok&&noPrice)setTimeout(()=>toast(`⚠️ 勾选的里有 ${noPrice} 个还没价格，请用“勾选的填这个价”或逐个填 · ${noPrice} ticked have no price yet`),1600);
+}
+async function linoPriceSelected(){
+  const st=linoStore;const v=Math.round(parseFloat(document.getElementById('linoSelPrice').value)*100)/100;
+  if(!(v>0&&v<=1000)){toast('请填一个正确的价格 Enter a valid price');return}
+  if(!linoSel.size){toast('还没勾选任何 SKU Nothing ticked');return}
+  const ch=[...linoSel].map(sku=>({sku,old:lino.prices[linoKey(sku,st)]??null,nw:v})).filter(c=>c.old!==c.nw);
+  await linoApplyChanges(st,ch);
 }
 async function linoAddStore(){
   const v=(document.getElementById('linoNewStore').value||'').trim();
