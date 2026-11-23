@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-18-v67-linoleum-sort-digits -->
+<!-- BUILD-VERSION: 2026-11-23-v68-perf-phase1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -127,6 +127,7 @@ text-align:center;cursor:pointer;transition:all .15s}
 .lino-chk{display:flex;align-items:center;padding:6px;cursor:pointer}.lino-chk input{width:20px;height:20px;cursor:pointer}.lino-row.sel{background:#eff6ff;border-color:var(--pri)}
 .lino-selhelp{background:var(--pri-l);border-color:#bae6fd;font-size:.85rem}.lino-selbar{position:sticky;bottom:0;z-index:5;margin-top:10px;max-width:860px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#0f172a;color:#fff;border-radius:12px;padding:12px 16px;box-shadow:0 -4px 16px rgba(0,0,0,.15)}.lino-selbar .hm-sub{color:#94a3b8}.lino-selmini{font-size:.72rem;margin-top:3px;color:#cbd5e1}.lino-selmini a{cursor:pointer;text-decoration:underline}.lino-selbar .btn-ghost{background:#fff}
 .lino-moved{opacity:.55}.lino-movetag{font-size:.72rem;font-weight:700;color:var(--pri)}.lino-unlist{opacity:.5}
+.page-loading{display:flex;align-items:center;gap:10px;color:var(--text3);padding:40px 8px;font-size:.9rem}.page-loading span{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--pri);border-radius:50%;animation:pgspin .8s linear infinite}@keyframes pgspin{to{transform:rotate(360deg)}}
 .cs-card{padding:16px 20px}.cs-q{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;font-size:.88rem}.cs-actions{display:flex;gap:6px;flex-shrink:0}.cs-actions .btn{width:auto}.cs-en{color:var(--text2);font-size:.8rem;font-weight:400}.cs-tip{margin-top:8px;font-size:.8rem;color:#92400e;background:var(--warn-bg);padding:6px 10px;border-radius:6px}.cs-reply{margin-top:10px;background:#f8fafc;border-left:3px solid var(--pri);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.84rem;white-space:pre-wrap;line-height:1.6}
 .badge{display:inline-block;padding:2px 10px;border-radius:4px;font-size:.68rem;font-weight:600;background:var(--pri-l);color:var(--pri-d)}
 .badge-staff{background:var(--ok-bg);color:var(--ok)}
@@ -264,7 +265,7 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 <script>
 const SB_URL='https://glohjxbpgqqzspytnbfm.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdsb2hqeGJwZ3FxenNweXRuYmZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUwODkyODEsImV4cCI6MjA5MDY2NTI4MX0.DF10KD-ePvAoiZoEGpvai5w1HVQeUPYQIHuLa3YXCps';
-let U=null,stores=[],staffList=[],currentTab='home',todoReminderTimer=null,chatChannel='general',chatPollTimer=null,chatUnreadTotal=0,lastKnownUnread=0;
+let U=null,stores=[],staffList=[],currentTab='home',chatBadgeAt=0,todoBadgeN=0,todoBadgeAt=0,todoReminderTimer=null,chatChannel='general',chatPollTimer=null,chatUnreadTotal=0,lastKnownUnread=0;
 
 const sb={
   h:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
@@ -354,14 +355,58 @@ async function initApp(){
   todoReminderTimer=setInterval(checkTodoReminder,3*60*60*1000);
   requestNotifPermission();
   updateChatBadge();
-  setInterval(updateChatBadge,10000);
+  // 未读红点：有实时推送时只做低频兜底检查（3分钟），推送不可用时每20秒；窗口在后台时不查
+  setInterval(async()=>{if(document.hidden||currentTab==='chat')return;const gap=rt.ok?180000:20000;if(Date.now()-chatBadgeAt<gap-500)return;chatBadgeAt=Date.now();if(await chatChanged())updateChatBadge()},20000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){updateChatBadge();if(currentTab==='chat')loadChatMessages()}});
+  rtStart();
 }
 async function loadData(){
-  stores=await sb.get('tks_stores','is_active=eq.true&order=store_name');
-  if(!Array.isArray(stores))stores=[];
-  try{const r=await sb.rpc('tks_get_staff_list');staffList=Array.isArray(r)?r:[]}catch(e){staffList=[]}
-  if(!Array.isArray(staffList))staffList=[];
+  const [st,sl]=await Promise.all([
+    sb.get('tks_stores','is_active=eq.true&order=store_name').catch(()=>[]),
+    sb.rpc('tks_get_staff_list').catch(()=>[])
+  ]);
+  stores=Array.isArray(st)?st:[];
+  staffList=Array.isArray(sl)?sl:[];
 }
+
+/* ---- 实时推送（Supabase Realtime）：有新消息/撤回时服务器主动通知，代替每隔几秒拉一次 ---- */
+const rt={client:null,ok:false,timer:null};
+function loadScriptOnce(src){
+  return new Promise((ok,no)=>{if([...document.scripts].some(x=>x.src===src))return ok();const el=document.createElement('script');el.src=src;el.onload=ok;el.onerror=()=>no(new Error('load '+src));document.head.appendChild(el)});
+}
+async function rtStart(){
+  try{
+    await loadScriptOnce('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js');
+    rt.client=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+    rt.client.channel('tks-messages')
+      .on('postgres_changes',{event:'*',schema:'public',table:'tks_messages'},()=>rtOnMessage())
+      .subscribe(status=>{rt.ok=(status==='SUBSCRIBED');console.log('[realtime]',status)});
+  }catch(e){rt.ok=false;console.warn('[realtime] 不可用，改用定时检查 fallback to polling',e)}
+}
+function rtOnMessage(){
+  // 短时间内多条消息合并成一次刷新
+  clearTimeout(rt.timer);
+  rt.timer=setTimeout(async()=>{
+    if(currentTab==='chat'&&!document.hidden){await loadChatMessages();refreshChatUnread()}
+    else updateChatBadge();
+  },400);
+}
+/* 轻量探测：只取最新一条消息和最新一次撤回的时间（两行，几百字节），没变化就不拉完整消息 */
+let chatProbeSig=null;
+async function chatChanged(){
+  try{
+    const [a,b]=await Promise.all([
+      sb.get('tks_messages','select=id&order=created_at.desc&limit=1'),
+      sb.get('tks_messages','select=deleted_at&deleted_at=not.is.null&order=deleted_at.desc&limit=1')
+    ]);
+    const sig=(a&&a[0]?a[0].id:'')+'|'+(b&&b[0]?b[0].deleted_at:'');
+    if(sig===chatProbeSig)return false;
+    chatProbeSig=sig;return true;
+  }catch(e){return true}
+}
+/* 简单缓存：同一份数据在有效期内不重复请求 */
+const _cache={};
+function cached(key,ttl,fn){const c=_cache[key];if(c&&Date.now()-c.t<ttl)return c.p;const p=Promise.resolve().then(fn);_cache[key]={t:Date.now(),p};p.catch(()=>{delete _cache[key]});return p}
 function isTop(){return U.role==='admin'||U.role==='S';}
 function myStores(){return isTop()?stores:stores.filter(s=>s.assigned_to===U.id)}
 
@@ -426,22 +471,28 @@ function buildNav(){
   }
   document.getElementById('sideNav').innerHTML=tabs.map(t=>t.id==='_sep'?'<div class="nav-sep"></div>':
     `<button class="nav-item${t.id===currentTab?' active':''}" id="nav_${t.id}" onclick="go('${t.id}')"><span class="ni">${t.icon}</span>${t.label}${t.id==='chat'&&chatUnreadTotal>0?'<span class="nav-badge">'+chatUnreadTotal+'</span>':''}</button>`).join('');
-  updateTodoBadge();
+  applyTodoBadge();
+  if(Date.now()-todoBadgeAt>60000)updateTodoBadge(); // 切换标签页时最多每分钟查一次
+}
+function applyTodoBadge(){
+  const nav=document.getElementById('nav_todos');if(!nav)return;
+  const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
+  if(todoBadgeN>0)nav.insertAdjacentHTML('beforeend','<span class="nav-badge">'+todoBadgeN+'</span>');
 }
 async function updateTodoBadge(){
   try{
+    todoBadgeAt=Date.now();
     const all=await sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc');
     if(!Array.isArray(all))return;
-    const mine=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop())));
-    const nav=document.getElementById('nav_todos');if(!nav)return;
-    const ex=nav.querySelector('.nav-badge');if(ex)ex.remove();
-    if(mine.length>0)nav.innerHTML+='<span class="nav-badge">'+mine.length+'</span>';
-  }catch(e){}
+    todoBadgeN=all.filter(t=>t.assigned_to===U.id||(!t.assigned_to&&t.status==='open')||t.claimed_by===U.id||(t.status==='submitted'&&(t.created_by===U.id||isTop()))).length;
+    applyTodoBadge();
+  }catch(e){todoBadgeAt=0}
 }
 function go(id){
   if(currentTab==='chat'&&id!=='chat')stopChatPoll();
   currentTab=id;buildNav();
   const m=document.getElementById('mainBody');
+  m.innerHTML='<div class="page-loading"><span></span>加载中 Loading...</div>';
   const render={home:rHome,chat:rChat,todos:rTodos,score:rScoreHub,sop:rSOP,lino:rLino,stores:rStores,users:rUsers,expenses:rExpenses};
   if(render[id])render[id](m);
 }
@@ -473,13 +524,13 @@ async function rHome(el){
   const t=today(),top=isTop(),ms=myStores();
   const weekStart=mondayOf(t),thisWeek=weekDatesOf(weekStart),lastWeek=weekDatesOf(addDays(weekStart,-7));
   const from=addDays(t,-60);
+  const picksP=U.role==='admin'?ensureDailyAuditPicks('admin_audit',2).catch(()=>[]):Promise.resolve([]);
   const [scoresR,todosR,noticeR,expR]=await Promise.all([
     sb.get('tks_scores','select=store_id,record_date,overall_score,audit_flagged_at,audit_image_url,audit_resolved&record_date=gte.'+from).catch(()=>[]),
     sb.get('tks_todos','status=in.(open,claimed,submitted,rejected)&order=created_at.asc').catch(()=>[]),
     sb.get('tks_home_notice','id=eq.1').catch(()=>[]),
-    top?sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:addDays(t,-90),p_date_to:null,p_category_id:null,p_keyword:null}).catch(()=>[]):Promise.resolve([])
+    top?cached('homePendingExp',300000,()=>sb.rpc('tks_get_expenses',{p_user_id:U.id,p_date_from:addDays(t,-90),p_date_to:null,p_category_id:null,p_keyword:null})).catch(()=>[]):Promise.resolve([])
   ]);
-  await updateChatBadge().catch(()=>{});
   const scores=Array.isArray(scoresR)?scoresR:[];
   const byStoreDate={};scores.forEach(s=>{byStoreDate[s.store_id+'_'+s.record_date]=s;});
   const allTodos=Array.isArray(todosR)?todosR:[];
@@ -614,7 +665,7 @@ async function rHome(el){
     }
   }
   if(U.role==='admin'){
-    const picks=await ensureDailyAuditPicks('admin_audit',2);
+    const picks=await picksP;
     if(picks.length){
       h+='<div class="card" style="background:var(--pri-l);border:none"><h3>🔍 你今天的私下抽查名单（只有你能看到） Your private spot-check list today (only you can see)</h3>'+
         picks.map(id=>`<span class="badge" style="margin-right:6px">${esc(stores.find(s=>s.id===id)?.store_name||'-')}</span>`).join('')+'</div>';
@@ -837,7 +888,7 @@ let expBalancePoll=null;
 function startExpBalancePoll(){
   if(expBalancePoll)clearInterval(expBalancePoll);
   expBalancePoll=setInterval(async()=>{
-    if(currentTab!=='expenses')return;
+    if(currentTab!=='expenses'||document.hidden)return;
     try{
       const r=await sb.rpc('tks_get_current_balance',{p_user_id:U.id});
       const elB=document.getElementById('currentBalanceDisplay');
@@ -847,16 +898,19 @@ function startExpBalancePoll(){
 }
 async function rExpenses(el){
   if(!(isTop()||U.role==='secretary')){el.innerHTML='<div class="card">🚫 无权限访问 Access denied</div>';return}
-  await loadExpCategories();
-  await loadRelatedPersons();
+  delete _cache.homePendingExp; // 进过开支页后，首页的待审数量重新算
+  // 4 个请求同时发出（原来是一个接一个）
+  const [,,openR,curR]=await Promise.all([
+    loadExpCategories(),loadRelatedPersons(),
+    sb.rpc('tks_get_opening_balance',{p_user_id:U.id}).catch(()=>null),
+    sb.rpc('tks_get_current_balance',{p_user_id:U.id}).catch(()=>null)
+  ]);
   startExpBalancePoll();
   const isAdmin=isTop();
   let h=`<div class="main-header"><h1>💰 日常开支登记 Expenses</h1><p>Daily Expense Log &middot; Sheet View</p></div>`;
 
   // 期初余额 + 实时余额
-  let opening=0,current=0;
-  try{const r=await sb.rpc('tks_get_opening_balance',{p_user_id:U.id});opening=typeof r==='number'?r:0}catch(e){}
-  try{const r=await sb.rpc('tks_get_current_balance',{p_user_id:U.id});current=typeof r==='number'?r:opening}catch(e){current=opening}
+  let opening=typeof openR==='number'?openR:0,current=typeof curR==='number'?curR:opening;
   h+=`<div class="card" style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
     <div><div class="sub-label">期初余额 Opening Balance</div><div style="font-size:1.3rem;font-weight:700" id="openingDisplay">${opening.toFixed(2)}</div></div>
     <div><div class="sub-label">实时余额 Current Balance（每15秒自动更新 auto-refresh 15s）</div><div style="font-size:1.9rem;font-weight:800;color:var(--bad)" id="currentBalanceDisplay">${current.toFixed(2)}</div></div>
@@ -2306,9 +2360,14 @@ async function markRead(key,upTo){
 
 function startChatPoll(){
   stopChatPoll();
+  // 实时推送正常时，新消息由推送触发刷新，这里只做每 2 分钟一次的兜底；推送不可用时每 10 秒检查一次
+  let last=Date.now();
   chatPollTimer=setInterval(async()=>{
-    if(currentTab!=='chat')return;
-    if(!document.hidden)await loadChatMessages(); // 窗口在后台时不刷消息，只查未读（用于提醒）
+    if(currentTab!=='chat'||document.hidden)return;
+    if(Date.now()-last<(rt.ok?120000:10000)-500)return;
+    last=Date.now();
+    if(!(await chatChanged()))return; // 没有新消息/撤回，不拉完整数据
+    await loadChatMessages();
     refreshChatUnread();
   },5000);
 }
@@ -2316,6 +2375,7 @@ function stopChatPoll(){if(chatPollTimer){clearInterval(chatPollTimer);chatPollT
 
 // 一次请求同时更新：聊天列表红点 + 左侧菜单红点 + 提醒
 async function refreshChatUnread(){
+  chatBadgeAt=Date.now();
   const {msgs,unread}=await fetchChatState(300);
   document.querySelectorAll('.chat-conv').forEach(el=>{
     const n=unread[el.dataset.key]||0;
@@ -2346,7 +2406,7 @@ function applyChatBadge(msgs,unread){
 }
 // 不在聊天页时，每 10 秒查一次未读（在聊天页时由上面的轮询负责，避免重复请求）
 async function updateChatBadge(){
-  if(chatPollTimer&&currentTab==='chat')return;
+  chatBadgeAt=Date.now();
   const {msgs,unread}=await fetchChatState(200);
   applyChatBadge(msgs,unread);
 }
