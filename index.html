@@ -410,7 +410,7 @@ async function chatChanged(){
   }catch(e){return true}
 }
 /* 按需加载的页面：打开时才下载对应文件（版本号随发布更新，避免缓存旧文件） */
-const APP_VER='2026-11-25-v71';
+const APP_VER='2026-11-25-v72';
 async function rHostLazy(el){
   try{await loadScriptOnce('js/host.js?v='+APP_VER)}catch(e){el.innerHTML='<div class="card" style="color:var(--bad)">❌ 页面加载失败，请刷新 Failed to load, please refresh</div>';return}
   if(currentTab==='host')window.rHost(el);
