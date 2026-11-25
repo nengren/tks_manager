@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- BUILD-VERSION: 2026-11-23-v69-host-weekly -->
+<!-- BUILD-VERSION: 2026-11-25-v70-lino-import-headers -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1890,7 +1890,8 @@ async function linoImport(file){
     for(const name of wb.SheetNames){
       const a=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:false,defval:''});
       for(let i=0;i<Math.min(a.length,10);i++){
-        const r=a[i].map(x=>String(x).trim());
+        // 表头统一处理：去掉空格/换行，只取“/”前面的中文部分（马帮新版表头是“库存SKU/stockSku”这种中英双写）
+        const r=a[i].map(x=>String(x).replace(/\s+/g,'').split('/')[0]);
         if(r.includes('库存SKU')||r.includes('SKU')){hdr=r;rows=a.slice(i+1);break}
       }
       if(hdr)break;
