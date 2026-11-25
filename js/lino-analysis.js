@@ -15,7 +15,7 @@ if(!document.getElementById('laCss')){const st=document.createElement('style');s
 .la-b{display:inline-block;font-size:.68rem;font-weight:700;border-radius:6px;padding:1px 6px;margin:2px 4px 0 0;white-space:nowrap}.la-b.star{background:#fef3c7;color:#92400e}.la-b.dead{background:#f1f5f9;color:#475569}.la-b.out{background:#fee2e2;color:#b91c1c}.la-b.slow{background:#ffedd5;color:#9a3412}.la-b.new{background:#dcfce7;color:#166534}
 .la-ins{display:grid;gap:8px;margin-bottom:10px}.la-in{border-radius:10px;padding:10px 14px;border:1px solid var(--border);background:#fff;font-size:.85rem;line-height:1.7}.la-in summary{cursor:pointer;font-weight:700}.la-in>div{margin-top:6px}.la-in.bad{border-left:4px solid #ef4444}.la-in.warn{border-left:4px solid #f97316}.la-in.good{border-left:4px solid #10b981}.la-in.info{border-left:4px solid #0ea5e9}
 .la-table td{min-width:70px}.la-main{font-weight:700}.la-price{font-size:.7rem;color:var(--text3)}.la-tot{background:#f8fafc}.la-detail{margin-top:14px}.la-set{margin-top:14px}.la-set summary{cursor:pointer;font-weight:700}
-.la-qgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:.82rem}.la-qgrid>div{background:#f8fafc;border-radius:8px;padding:8px 12px}
+.la-qgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:.82rem}.la-qgrid>div{background:#f8fafc;border-radius:8px;padding:8px 12px;align-self:start}.la-qlist{margin-top:6px}.la-qlist summary{cursor:pointer;color:var(--pri);font-weight:700}.la-qlist table{margin-top:6px;background:#fff;border-radius:8px}.la-qlist td,.la-qlist th{padding:5px 8px}.la-copyall{width:auto!important;padding:2px 8px!important;font-size:.72rem!important;margin-left:6px}
 .la-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.la-kpis>div{background:#f8fafc;border-radius:10px;padding:12px}.la-kpis .v{font-size:1.3rem;font-weight:800}.la-kpis .l{font-size:.75rem;color:var(--text3)}
 .la-bar{height:10px;background:#f1f5f9;border-radius:5px;overflow:hidden}.la-bar span{display:block;height:100%;background:linear-gradient(90deg,#10b981,#0ea5e9)}
 .la-sim td,.la-sim th{padding:6px 8px}.la-sim .now{background:#fef9c3}
@@ -207,7 +207,13 @@ function quadHtml(D,W){
     <div class="hm-sub">横轴 = 每天卖几码（所有店合计）· 竖轴 = 每卖 1 码赚多少 · 圆越大 = 每天赚得越多 · 虚线 = 每天赚同样多的线 · 点圆圈看详情<br>
     X = yards per day · Y = profit per yard · bigger bubble = more profit per day · dashed = same daily profit · click a bubble for details</div>
     <div style="height:560px;margin-top:10px"><canvas id="laQuad"></canvas></div>
-    <div class="la-qgrid">${['C','A','D','B'].map(q=>`<div style="border-left:4px solid ${QUAD[q].c}"><b>${QUAD[q].short}（${cnt[q]}）</b><br>${QUAD[q].zh}<br><span class="hm-sub">${QUAD[q].en}</span></div>`).join('')}</div>
+    <div class="la-qgrid">${['C','A','D','B'].map(q=>{
+      const list=D.skus.filter(s=>W.quad[s.sku]===q).sort((a,b)=>W.skuTot[b.sku].profitPerDay-W.skuTot[a.sku].profitPerDay);
+      return `<div style="border-left:4px solid ${QUAD[q].c}"><b>${QUAD[q].short}（${cnt[q]}）</b><br>${QUAD[q].zh}<br><span class="hm-sub">${QUAD[q].en}</span>
+      ${list.length?`<details class="la-qlist"><summary>展开看 SKU 明细 Show SKUs（${list.length}）</summary>
+        <table class="host-tbl"><thead><tr><th>SKU <button class="btn btn-ghost btn-sm la-copyall" onclick="laCopyQuad('${q}',this)">📋 一键复制全部 Copy all</button></th><th class="num">码/天<br><small>Yards/day</small></th><th class="num">均价<br><small>Avg price</small></th><th class="num">每码赚<br><small>Profit/yard</small></th><th class="num">每天赚<br><small>Profit/day</small></th></tr></thead><tbody>
+        ${list.map(s=>{const t=W.skuTot[s.sku];return `<tr><td><a class="host-link" onclick="laDetail('${esc(s.sku)}')">${esc(s.sku)}</a> <button class="lino-del" title="复制 Copy" onclick="linoCopySku('${esc(s.sku)}',this)">✂️</button>${flagBadge(D.flag[s.sku])}</td><td class="num">${fmt1(t.perDay)}</td><td class="num">₱${t.avgPrice.toFixed(2)}</td><td class="num" style="${t.margin<0?'color:var(--bad)':''}">${peso1(t.margin)}</td><td class="num"><b>${peso(t.profitPerDay)}</b></td></tr>`}).join('')}
+        </tbody></table></details>`:''}</div>`}).join('')}</div>
     <div class="hm-sub" style="margin-top:6px">分界线 = 中位数：每天 ${fmt1(W.mx)} 码、每码 ${peso1(W.my)} · Split lines = medians</div></div>`;
 }
 async function drawQuad(D,W){
@@ -303,6 +309,12 @@ function matrixHtml(D,W,nStar,nFlag){
   return h+'</tbody></table></div>';
 }
 function seg(name,opts){return `<div class="lino-seg">${opts.map(([v,l])=>`<button class="${String(LA[name])===String(v)?'on':''}" onclick="laSet('${name}','${v}')">${l}</button>`).join('')}</div>`}
+window.laCopyQuad=async function(q,btn){
+  const W=LA.data.win[LA.win];const txt=LA.data.skus.filter(s=>W.quad[s.sku]===q).sort((a,b)=>W.skuTot[b.sku].profitPerDay-W.skuTot[a.sku].profitPerDay).map(s=>s.sku).join('\n');
+  let ok=false;try{await navigator.clipboard.writeText(txt);ok=true}catch(e){try{const t=document.createElement('textarea');t.value=txt;document.body.appendChild(t);t.select();ok=document.execCommand('copy');t.remove()}catch(e2){}}
+  const n=txt?txt.split('\n').length:0;
+  if(ok){toast(`📋 已复制 ${n} 个 SKU（一行一个）· Copied ${n} SKUs`);const o=btn.textContent;btn.textContent='✅ 已复制 Copied';setTimeout(()=>{btn.textContent=o},1500)}else toast('❌ 复制失败 Copy failed');
+};
 window.laSet=function(n,v){LA[n]=n==='win'&&v!=='all'?Number(v):v;render(document.getElementById('linoBody'))};
 
 /* ---------- 自动发现 ---------- */
