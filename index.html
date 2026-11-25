@@ -410,7 +410,7 @@ async function chatChanged(){
   }catch(e){return true}
 }
 /* 按需加载的页面：打开时才下载对应文件（版本号随发布更新，避免缓存旧文件） */
-const APP_VER='2026-11-23-v69';
+const APP_VER='2026-11-25-v70';
 async function rHostLazy(el){
   try{await loadScriptOnce('js/host.js?v='+APP_VER)}catch(e){el.innerHTML='<div class="card" style="color:var(--bad)">❌ 页面加载失败，请刷新 Failed to load, please refresh</div>';return}
   if(currentTab==='host')window.rHost(el);
@@ -1490,10 +1490,14 @@ async function rLino(el){
   let h=`<div class="main-header"><h1>🧵 地板皮革 Linoleum</h1><p>按店铺登记折扣价（Deal price），保持和 TikTok 后台一致 · Record each store's deal price, keep it the same as TikTok</p></div>`;
   if(linoIsAdmin())h+=`<div class="sub-tabs" style="display:flex;gap:8px;margin-bottom:14px">
     <button class="btn ${linoTab==='prices'?'btn-pri':'btn-ghost'} btn-sm" style="width:auto" onclick="linoTab='prices';rLino(document.getElementById('mainBody'))">💲 价格表 Prices</button>
-    <button class="btn ${linoTab==='data'?'btn-pri':'btn-ghost'} btn-sm" style="width:auto" onclick="linoTab='data';rLino(document.getElementById('mainBody'))">📥 数据与设置 Data & Settings <span class="badge" style="margin-left:4px">仅你可见 Only you</span></button></div>`;
+    <button class="btn ${linoTab==='data'?'btn-pri':'btn-ghost'} btn-sm" style="width:auto" onclick="linoTab='data';rLino(document.getElementById('mainBody'))">📥 数据与设置 Data & Settings <span class="badge" style="margin-left:4px">仅你可见 Only you</span></button>
+    <button class="btn ${linoTab==='analysis'?'btn-pri':'btn-ghost'} btn-sm" style="width:auto" onclick="linoTab='analysis';rLino(document.getElementById('mainBody'))">📈 分析 Analysis <span class="badge" style="margin-left:4px">仅你可见 Only you</span></button></div>`;
   h+='<div id="linoBody"></div>';
   el.innerHTML=h;
-  if(linoTab==='data'&&linoIsAdmin())linoRenderData();else linoRenderPrices();
+  if(linoTab==='data'&&linoIsAdmin())linoRenderData();
+  else if(linoTab==='analysis'&&linoIsAdmin()){const b=document.getElementById('linoBody');b.innerHTML='<div class="page-loading"><span></span>加载中 Loading...</div>';
+    try{await loadScriptOnce('js/lino-analysis.js?v='+APP_VER);rLinoAnalysis(b)}catch(e){b.innerHTML='<div class="card" style="color:var(--bad)">❌ 分析模块加载失败，请刷新 · Failed to load, please refresh</div>'}}
+  else linoRenderPrices();
 }
 
 /* ---------- 价格表 ---------- */
